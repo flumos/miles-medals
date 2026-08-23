@@ -1,7 +1,7 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=5";
-import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js?v=5";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=6";
+import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js?v=6";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -45,8 +45,21 @@ async function handleFiles(files) {
         tryHarder: true,
       });
       const bcbpHit = results.find((r) => r.text && r.text[0] === "M" && parseBCBP(r.text));
-      const uicHit = results.find((r) => r.bytes && looksLikeUIC(new Uint8Array(r.bytes)));
-      if (!bcbpHit && !uicHit) { showError(file.name, results.length ? "Barcode gefunden, aber weder Boardingpass (BCBP) noch DB-Ticket (UIC)." : "Kein Barcode im Bild. Tipp: Im DB Navigator den Tab „Ticket“ öffnen (nicht „Reiseplan“) und den Aztec-Code screenshotten; bei Papier: näher und gerade fotografieren."); continue; }
+      const uicHit = results.find((r) => r.bytes && looksLikeUIC(new Uint8Array(r.bytes)))
+        || results.find((r) => r.text && r.text.startsWith("#UT"));   // Fallback: Text-Repräsentation
+      if (!bcbpHit && !uicHit) {
+        if (!results.length) { showError(file.name, "Kein Barcode im Bild. Tipp: Im DB Navigator den Tab „Ticket“ öffnen (nicht „Reiseplan“) und den Aztec-Code screenshotten; bei Papier: näher und gerade fotografieren."); continue; }
+        // Diagnose: Format + Inhalts-Anfang zeigen, damit unbekannte Ticketformate identifizierbar sind
+        const diag = results.map((r) => {
+          const b = r.bytes ? new Uint8Array(r.bytes) : null;
+          const hex = b ? [...b.slice(0, 10)].map((x) => x.toString(16).padStart(2, "0")).join(" ") : "—";
+          const txt = (r.text || "").slice(0, 24).replace(/[^\x20-\x7E]/g, "·");
+          console.log("MM-Diagnose", r.format, r.text, b);
+          return `${r.format}: „${txt}“ [${hex}]`;
+        }).join(" · ");
+        showError(file.name, `Barcode gefunden, aber unbekanntes Format — Diagnose: ${diag}`);
+        continue;
+      }
 
       if (bcbpHit) {
         const pass = parseBCBP(bcbpHit.text);
@@ -68,7 +81,9 @@ async function handleFiles(files) {
       }
 
       if (uicHit) {
-        const bytes = new Uint8Array(uicHit.bytes);
+        const bytes = uicHit.bytes && uicHit.bytes.length
+          ? new Uint8Array(uicHit.bytes)
+          : Uint8Array.from(uicHit.text, (c) => c.charCodeAt(0) & 0xff);
         const ext = extractCompressed(bytes);
         if (!ext) { showError(file.name, "DB-Ticket erkannt, aber die Daten ließen sich nicht auspacken."); continue; }
         const ticket = parseUICPayload(await inflate(ext.compressed));
