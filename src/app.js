@@ -46,7 +46,7 @@ async function handleFiles(files) {
       });
       const bcbpHit = results.find((r) => r.text && r.text[0] === "M" && parseBCBP(r.text));
       const uicHit = results.find((r) => r.bytes && looksLikeUIC(new Uint8Array(r.bytes)));
-      if (!bcbpHit && !uicHit) { showError(file.name, results.length ? "Barcode gefunden, aber weder Boardingpass (BCBP) noch DB-Ticket (UIC)." : "Kein Barcode erkennbar — näher/gerader fotografieren hilft."); continue; }
+      if (!bcbpHit && !uicHit) { showError(file.name, results.length ? "Barcode gefunden, aber weder Boardingpass (BCBP) noch DB-Ticket (UIC)." : "Kein Barcode im Bild. Tipp: Im DB Navigator den Tab „Ticket“ öffnen (nicht „Reiseplan“) und den Aztec-Code screenshotten; bei Papier: näher und gerade fotografieren."); continue; }
 
       if (bcbpHit) {
         const pass = parseBCBP(bcbpHit.text);
