@@ -1,7 +1,7 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js";
-import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=5";
+import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js?v=5";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
