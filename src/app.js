@@ -1,8 +1,8 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=11";
-import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js?v=11";
-import { guessJourney } from "./fcb.js?v=11";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=12";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=12";
+import { guessJourney, findStationBest } from "./fcb.js?v=12";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -41,9 +41,19 @@ async function inflate(bytes) {
 // ---------- Storage ----------
 const loadTrips = () => JSON.parse(localStorage.getItem(STORE_KEY) || "[]");
 const saveTrips = (t) => localStorage.setItem(STORE_KEY, JSON.stringify(t));
-const NIGHTS_KEY = "mm_nights_v1";           // manuell nachgetragene Hotelnächte (ISO-Daten)
+const NIGHTS_KEY = "mm_nights_v1";           // Alt: einzelne Hotelnächte (ISO-Daten) — bleibt zählbar
 const loadNights = () => JSON.parse(localStorage.getItem(NIGHTS_KEY) || "[]");
 const saveNights = (n) => localStorage.setItem(NIGHTS_KEY, JSON.stringify(n));
+const STAYS_KEY = "mm_stays_v1";             // Übernachtungen: {hotel, city, from, to}
+const loadStays = () => JSON.parse(localStorage.getItem(STAYS_KEY) || "[]");
+const saveStays = (x) => localStorage.setItem(STAYS_KEY, JSON.stringify(x));
+// Nächte eines Aufenthalts als ISO-Daten (Anreise bis Tag vor Abreise)
+function stayNights(stay) {
+  const out = [];
+  const d = new Date(stay.from + "T12:00:00Z"), end = new Date(stay.to + "T12:00:00Z");
+  while (d < end && out.length < 90) { out.push(d.toISOString().slice(0, 10)); d.setUTCDate(d.getUTCDate() + 1); }
+  return out;
+}
 const SEG_GOAL = 30;                          // Vielflieger-Segment-Ziel (später konfigurierbar)
 
 // ---------- Barcode → Inbox ----------
@@ -130,7 +140,7 @@ async function handleFiles(files) {
         }
         if (!ticket.from || !ticket.to) { showError(file.name, `DB-Ticket gelesen (${(ticket.records || []).join(", ")}), aber ohne Start/Ziel-Felder — vermutlich Zeitkarte oder Sonderformat.`); continue; }
         const st = await stations();
-        const a = findStation(st, ticket.from), b = findStation(st, ticket.to);
+        const a = findStationBest(st, ticket.from)?.station, b = findStationBest(st, ticket.to)?.station;
         addInboxCard({
           mode: "train",
           from: (a && a[3]) || ticket.from, to: (b && b[3]) || ticket.to,
@@ -276,7 +286,8 @@ async function renderMap(trips) {
 // ---------- Rendering ----------
 function render() {
   const trips = loadTrips();
-  const nights = loadNights();
+  const stays = loadStays();
+  const nights = [...loadNights(), ...stays.flatMap(stayNights)];
   const has = trips.length > 0 || nights.length > 0;
   $("year").hidden = $("log").hidden = !has;
   $("collection").hidden = $("mapSection").hidden = trips.length === 0;
@@ -330,12 +341,44 @@ function render() {
         <span class="c-last">${c.last}</span>
       </div>`).join("");
 
-  $("tripList").innerHTML = trips.map((t) => `
-    <div class="trip">
-      <span class="r">${esc(t.from)} → ${esc(t.to)}${t.mode === "train" ? " 🚆" : ""} <span style="font-weight:400">· ${esc(t.toCity)}</span></span>
-      <span class="km">${t.km ? t.km.toLocaleString("de-DE") + " km" : "—"}</span>
-      <span class="d">${t.date} · ${t.carrier} ${t.flightNo}</span>
-    </div>`).join("");
+  $("tripList").innerHTML = renderReisen(trips, stays);
+}
+
+// ---------- Reise-Gruppierung: Etappen + Übernachtungen, die zeitlich zusammenhängen ----------
+function renderReisen(trips, stays) {
+  const events = [
+    ...trips.map((t) => ({ kind: "leg", start: t.date, end: t.date, t })),
+    ...stays.map((st) => ({ kind: "stay", start: st.from, end: st.to, st })),
+  ].filter((e) => e.start).sort((a, b) => (a.start < b.start ? -1 : 1));
+  const addDays = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const groups = [];
+  for (const e of events) {
+    const g = groups[groups.length - 1];
+    if (g && e.start <= addDays(g.end, 2)) { g.events.push(e); if (e.end > g.end) g.end = e.end; }
+    else groups.push({ start: e.start, end: e.end, events: [e] });
+  }
+  const fmt = (iso) => iso.slice(8, 10) + "." + iso.slice(5, 7) + ".";
+  return groups.reverse().map((g) => {
+    const km = g.events.reduce((s, e) => s + (e.t?.km || 0), 0);
+    const nights = g.events.filter((e) => e.kind === "stay").reduce((s, e) => s + stayNights(e.st).length, 0);
+    // Reise-Titel: Ziel der weitesten Etappe, sonst Stadt der Übernachtung
+    const far = g.events.filter((e) => e.kind === "leg").sort((a, b) => (b.t.km || 0) - (a.t.km || 0))[0];
+    const title = far ? far.t.toCity : (g.events[0].st?.city || g.events[0].st?.hotel || "Reise");
+    const range = g.start === g.end ? fmt(g.start) : `${fmt(g.start)}–${fmt(g.end)}`;
+    const meta = [range, km ? km.toLocaleString("de-DE") + " km" : null, nights ? nights + (nights === 1 ? " Nacht" : " Nächte") : null].filter(Boolean).join(" · ");
+    const rows = g.events.map((e) => e.kind === "leg" ? `
+      <div class="reise-row">
+        <span class="ic">${e.t.mode === "train" ? "🚆" : "✈"}</span>
+        <span class="rr-main">${esc(e.t.from)} → ${esc(e.t.to)} <span>· ${e.t.date.slice(8, 10)}.${e.t.date.slice(5, 7)}. · ${esc(e.t.carrier)} ${esc(e.t.flightNo)}</span></span>
+        <span class="rr-km">${e.t.km ? (e.t.mode === "train" ? "≈ " : "") + e.t.km.toLocaleString("de-DE") + " km" : ""}</span>
+      </div>` : `
+      <div class="reise-row">
+        <span class="ic">🛏</span>
+        <span class="rr-main">${esc(e.st.hotel || "Hotel")} <span>· ${esc(e.st.city || "")}</span></span>
+        <span class="rr-km nights">${stayNights(e.st).length} ${stayNights(e.st).length === 1 ? "Nacht" : "Nächte"}</span>
+      </div>`).join("");
+    return `<div class="reise"><div class="reise-head"><span class="rt">${esc(title)}</span><span class="rm">${meta}</span></div>${rows}</div>`;
+  }).join("");
 }
 
 // ---------- Wiring ----------
@@ -349,20 +392,25 @@ dz.addEventListener("drop", (e) => handleFiles([...e.dataTransfer.files]));
 
 $("exportBtn").addEventListener("click", (e) => {
   e.preventDefault();
-  const blob = new Blob([JSON.stringify({ trips: loadTrips(), nights: loadNights() }, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify({ trips: loadTrips(), stays: loadStays(), nights: loadNights() }, null, 2)], { type: "application/json" });
   const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "miles-medals-export.json" });
   a.click();
 });
-$("addNight").addEventListener("click", () => {
-  const n = loadNights();
-  n.push(new Date().toISOString().slice(0, 10));
-  saveNights(n);
+$("stayAdd").addEventListener("click", () => {
+  const stay = { hotel: $("stayHotel").value.trim(), city: $("stayCity").value.trim(),
+                 from: $("stayFrom").value, to: $("stayTo").value };
+  if (!stay.from || !stay.to || stay.to <= stay.from) { alert("Bitte An- und Abreise angeben (Abreise nach Anreise)."); return; }
+  if (!stay.hotel && !stay.city) { alert("Hotel oder Stadt angeben."); return; }
+  const stays = loadStays();
+  stays.push(stay);
+  saveStays(stays);
+  ["stayHotel", "stayCity", "stayFrom", "stayTo"].forEach((id) => $(id).value = "");
   render();
 });
 
 $("resetBtn").addEventListener("click", (e) => {
   e.preventDefault();
-  if (confirm("Wirklich alle Reisen löschen? (Vorher exportieren?)")) { localStorage.removeItem(STORE_KEY); localStorage.removeItem(NIGHTS_KEY); render(); }
+  if (confirm("Wirklich alle Reisen löschen? (Vorher exportieren?)")) { localStorage.removeItem(STORE_KEY); localStorage.removeItem(NIGHTS_KEY); localStorage.removeItem(STAYS_KEY); render(); }
 });
 
 async function migrateTripCodes() {
@@ -376,7 +424,7 @@ async function migrateTripCodes() {
     if (t.mode !== "train") continue;
     for (const k of ["from", "to"]) {
       if (!t[k]) continue;
-      const hit = findStation(st, t[k]) || byRil[t[k]];   // voller Name oder alter RIL100-Code
+      const hit = findStationBest(st, t[k])?.station || byRil[t[k]];   // voller Name oder alter RIL100-Code
       if (hit && hit[3] && t[k] !== hit[3]) { t[k] = hit[3]; changed = true; }
     }
   }

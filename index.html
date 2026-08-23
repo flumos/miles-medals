@@ -7,7 +7,7 @@
 <meta name="description" content="Boardingpass rein, Reisejahr raus. Läuft komplett im Browser — nichts verlässt dein Gerät.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=11">
+<link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body>
 
@@ -38,7 +38,7 @@
       <div class="status-row">
         <div class="status-label">Elite-Nächte</div>
         <div class="status-bar"><i id="nightBar"></i><b style="left:50%" title="Gold ab 25"></b></div>
-        <div class="status-val"><span id="nightVal">0</span>/50 <button id="addNight" title="Hotelnacht nachtragen (heute)">+ Nacht</button></div>
+        <div class="status-val"><span id="nightVal">0</span>/50</div>
       </div>
       <p class="status-note">Status-Fortschritt aus deinen Belegen — Segmente zählen für Vielflieger-Stufen, Nächte für Hotel-Stati (Gold ab 25, Platin ab 50). Programm-Zuordnung kommt in der App.</p>
     </div>
@@ -49,6 +49,17 @@
       <div class="dz-icon" aria-hidden="true">🎫</div>
       <div class="dz-text"><strong>Boardingpass hierher ziehen</strong><br>oder tippen zum Auswählen</div>
       <input type="file" id="fileInput" accept="image/*" multiple hidden>
+    </div>
+  </section>
+
+  <section class="stay-form">
+    <h2>Übernachtung nachtragen</h2>
+    <div class="stay-grid">
+      <input id="stayHotel" placeholder="Hotel (z. B. Marriott Frankfurt)" aria-label="Hotelname">
+      <input id="stayCity" placeholder="Stadt" aria-label="Stadt">
+      <input id="stayFrom" type="date" aria-label="Anreise">
+      <input id="stayTo" type="date" aria-label="Abreise">
+      <button id="stayAdd" class="confirm">Eintragen</button>
     </div>
   </section>
 
@@ -79,11 +90,11 @@
 </main>
 
 <footer>
-  <span>Testlabor <b id="appver">v11</b> · lokal &amp; privat · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
+  <span>Testlabor <b id="appver">v12</b> · lokal &amp; privat · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
 </footer>
 
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/zxing-full.iife.js"></script>
-<script type="module" src="src/app.js?v=11"></script>
+<script type="module" src="src/app.js?v=12"></script>
 </body>
 </html>
