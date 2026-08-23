@@ -1,0 +1,8 @@
+{
+  // Miles & Medals — Webapp-Testlabor, rein statische Assets (kein Worker-Code)
+  "name": "miles-medals",
+  "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "./"
+  }
+}
