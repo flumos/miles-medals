@@ -1,198 +1,198 @@
-/* Miles & Medals — Ranger Design-System v0.2 (Webapp-Testlabor)
+/* Miles & Medals — Testlabor im Instrument-Register (Ranger v0.3, dunkle Kartografie)
+   Bewusst Ein-Themen-Design: warmes Karten-Schwarz, Haarlinien, Mono-Labels.
    Tokens siehe Vault: 02 Projekte/Miles & Medals/Miles & Medals – Design.md */
 :root {
+  --bg: #120D08;
+  --card: #1B140D;
+  --card2: #221A11;
+  --ink: #F0E7D8;
+  --muted: #A08F79;
+  --line: #2E241A;
   --sunset: #E8703A;
-  --coral: #F2997B;
   --gold: #E9B44C;
-  --pine: #2A4A44;
-  --teal: #3E7C7B;
-  --paper: #F2E8D5;
-  --card: #FAF4E7;
-  --ink: #2B2118;
-  --muted: #7A6D5C;
-  --line: #DDD1BA;
-  --rust: #A8481A;
-  --accent-text: var(--rust);
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #1E1712;
-    --card: #2A2018;
-    --ink: #F0E7D8;
-    --muted: #A89880;
-    --line: #443729;
-    --accent-text: var(--sunset);
-  }
+  --teal: #5E9A94;
+  --mono: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
 }
 
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  background: var(--paper);
+  background: var(--bg);
   color: var(--ink);
   font-family: "Public Sans", -apple-system, "Helvetica Neue", Arial, sans-serif;
-  font-size: 16px;
+  font-size: 15.5px;
   line-height: 1.55;
 }
 main, .hero { max-width: 640px; margin: 0 auto; padding: 0 18px; }
 
-h1, h2, .eyebrow, .dz-text strong {
-  font-family: "Staatliches", "Arial Narrow", sans-serif;
-  font-weight: 400;
+.hero { text-align: center; padding-top: 36px; }
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--sunset);
 }
-.hero { text-align: center; padding-top: 40px; }
-.eyebrow { font-size: 14px; letter-spacing: 0.2em; color: var(--accent-text); }
-h1 { font-size: clamp(34px, 8vw, 48px); letter-spacing: 0.04em; line-height: 1.05; margin: 6px 0 10px; }
-.hero p { color: var(--muted); margin: 0 auto 24px; max-width: 34em; }
-.hero p strong { color: var(--ink); }
-h2 { font-size: 24px; letter-spacing: 0.08em; margin: 30px 0 12px; }
+h1 { font-size: clamp(26px, 6vw, 34px); font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; margin: 8px 0 10px; }
+.hero p { color: var(--muted); margin: 0 auto 22px; max-width: 36em; font-size: 14.5px; }
+.hero p strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: var(--mono);
+  font-size: 12px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--muted);
+  margin: 34px 0 12px;
+}
 
+/* Dropzone */
 .dropzone {
-  border: 2.5px dashed var(--line);
-  border-radius: 16px;
+  border: 1.5px dashed var(--line);
+  border-radius: 12px;
   background: var(--card);
-  padding: 34px 16px;
+  padding: 26px 16px;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.1s;
+  transition: border-color 0.15s;
 }
 .dropzone:hover, .dropzone:focus-visible, .dropzone.drag { border-color: var(--sunset); outline: none; }
-.dropzone.drag { transform: scale(1.01); }
-.dz-icon { font-size: 34px; margin-bottom: 6px; }
-.dz-text { color: var(--muted); }
-.dz-text strong { color: var(--ink); font-size: 19px; letter-spacing: 0.05em; }
+.dz-icon { font-size: 26px; margin-bottom: 4px; }
+.dz-text { color: var(--muted); font-size: 13.5px; }
+.dz-text strong { color: var(--ink); font-size: 15px; font-weight: 600; }
 .dropzone.busy { opacity: 0.6; pointer-events: none; }
 
+/* Inbox */
 .inbox-card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 16px 18px;
-  margin-bottom: 12px;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
 }
 .inbox-card .route {
-  font-family: "Staatliches", sans-serif;
-  font-size: 30px;
-  letter-spacing: 0.04em;
-  display: flex; align-items: baseline; gap: 12px;
+  font-family: var(--mono); font-weight: 600;
+  font-size: 22px; letter-spacing: 0.06em;
+  display: flex; align-items: baseline; gap: 10px;
 }
-.inbox-card .route .plane { color: var(--sunset); font-size: 18px; }
-.inbox-card .meta { font-size: 13.5px; color: var(--muted); margin: 4px 0 12px; }
+.inbox-card .route .plane { color: var(--sunset); font-size: 15px; }
+.inbox-card .meta { font-size: 13px; color: var(--muted); margin: 4px 0 12px; }
 .inbox-card .meta b { color: var(--ink); font-weight: 600; }
 .inbox-card .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .inbox-card input[type="date"] {
-  font: inherit; font-size: 14px; padding: 6px 8px;
+  font: inherit; font-size: 13px; padding: 6px 8px;
   border: 1px solid var(--line); border-radius: 8px;
-  background: var(--paper); color: var(--ink);
+  background: var(--card2); color: var(--ink);
+  color-scheme: dark;
 }
 button.confirm {
-  font-family: "Staatliches", sans-serif;
-  font-size: 17px; letter-spacing: 0.08em;
-  background: var(--sunset); color: #2B2118;
-  border: none; border-radius: 10px;
-  padding: 9px 20px; cursor: pointer;
+  font-family: var(--mono); font-weight: 600;
+  font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+  background: var(--sunset); color: #1A0F06;
+  border: none; border-radius: 8px;
+  padding: 8px 16px; cursor: pointer;
 }
-button.confirm:hover { filter: brightness(1.05); }
+button.confirm:hover { filter: brightness(1.08); }
 button.dismiss {
-  font: inherit; font-size: 13.5px; color: var(--muted);
+  font: inherit; font-size: 12.5px; color: var(--muted);
   background: none; border: none; cursor: pointer; text-decoration: underline;
 }
 .error-card {
-  background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--rust);
-  border-radius: 10px; padding: 12px 16px; margin-bottom: 12px;
-  font-size: 14px; color: var(--muted);
+  background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--sunset);
+  border-radius: 10px; padding: 10px 14px; margin-bottom: 10px;
+  font-size: 13px; color: var(--muted);
 }
 
+/* Jahres-Panel */
 .year {
-  background: var(--pine);
-  border-radius: 16px;
-  padding: 22px 22px 18px;
-  margin-top: 30px;
-  color: #F2E8D5;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px 20px 16px;
+  margin: 22px 0 26px;
 }
-.year .eyebrow { color: #E9B44C; }
-.year-km { font-family: "Staatliches", sans-serif; font-size: clamp(38px, 9vw, 52px); line-height: 1.05; font-variant-numeric: tabular-nums; }
-.year-km small { font-size: 0.38em; color: #BFD0C6; letter-spacing: 0.08em; }
+.year .eyebrow { color: var(--gold); }
+.year-km {
+  font-family: var(--mono); font-weight: 600;
+  font-size: clamp(34px, 8vw, 46px); line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.year-km small { font-size: 0.32em; font-weight: 400; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; }
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
 @media (max-width: 480px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
-.tile { background: rgba(242, 232, 213, 0.09); border-radius: 10px; padding: 10px 10px 8px; }
-.tile .n { font-family: "Staatliches", sans-serif; font-size: 24px; font-variant-numeric: tabular-nums; }
-.tile .l { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #BFD0C6; }
+.tile { border: 1px solid var(--line); background: var(--card2); border-radius: 8px; padding: 8px 10px 7px; }
+.tile .n { font-family: var(--mono); font-weight: 600; font-size: 19px; font-variant-numeric: tabular-nums; }
+.tile .l { font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-top: 1px; }
 
-/* Status-Fortschritt im Jahres-Panel */
-.status { margin-top: 16px; border-top: 1px solid rgba(242,232,213,0.18); padding-top: 12px; }
+/* Status-Fortschritt */
+.status { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
 .status-row {
   display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: center;
-  margin-bottom: 8px; font-size: 12.5px;
+  margin-bottom: 8px;
 }
-.status-label { letter-spacing: 0.06em; text-transform: uppercase; font-size: 10.5px; color: #BFD0C6; }
-.status-bar { position: relative; height: 10px; border-radius: 5px; background: rgba(242,232,213,0.12); overflow: visible; }
-.status-bar i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 5px; background: #E9B44C; transition: width 0.4s; }
-.status-bar b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: rgba(242,232,213,0.55); }
-.status-val { font-variant-numeric: tabular-nums; color: #F2E8D5; white-space: nowrap; }
+.status-label { font-family: var(--mono); letter-spacing: 0.12em; text-transform: uppercase; font-size: 9.5px; color: var(--muted); }
+.status-bar { position: relative; height: 8px; border-radius: 4px; background: var(--card2); border: 1px solid var(--line); }
+.status-bar i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 4px; background: var(--gold); transition: width 0.4s; }
+.status-bar b { position: absolute; top: -3px; bottom: -3px; width: 1.5px; background: rgba(240,231,216,0.4); }
+.status-val { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
 .status-val button {
-  font: inherit; font-size: 11px; margin-left: 6px; padding: 2px 8px;
-  background: rgba(242,232,213,0.14); color: #F2E8D5; border: none; border-radius: 6px; cursor: pointer;
+  font-family: var(--mono); font-size: 10.5px; margin-left: 6px; padding: 3px 8px;
+  background: var(--card2); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
 }
-.status-val button:hover { background: rgba(242,232,213,0.24); }
-.status-note { font-size: 11px; color: #9FB3A7; margin: 8px 0 0; }
-.year { margin-top: 24px; margin-bottom: 26px; }
+.status-val button:hover { border-color: var(--muted); }
+.status-note { font-size: 11px; color: var(--muted); margin: 8px 0 0; }
 
-/* Karte — Instrument-Register (Ranger v0.3) */
+/* Karte */
 .map-section h2 { margin-bottom: 10px; }
-#map {
-  height: 380px;
-  border-radius: 14px;
-  background: #120D08;
-  outline: 1px solid var(--line);
-}
-.leaflet-container { font-family: "Public Sans", sans-serif; }
+#map { height: 380px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
+.leaflet-container { font-family: "Public Sans", sans-serif; background: var(--bg); }
+.leaflet-bar a { background: var(--card); color: var(--ink); border-bottom: 1px solid var(--line); }
+.leaflet-bar a:hover { background: var(--card2); color: var(--ink); }
 .mm-citylabel {
-  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--mono);
   font-size: 10px; letter-spacing: 1.5px;
   color: #F0E7D8; text-shadow: 0 1px 3px rgba(0,0,0,0.9);
   background: none; border: none; box-shadow: none;
 }
 .map-legend {
   display: flex; gap: 20px; flex-wrap: wrap;
-  font-family: "SF Mono", ui-monospace, Menlo, monospace;
-  font-size: 10.5px; letter-spacing: 1.2px; color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px; letter-spacing: 0.12em; color: var(--muted);
   padding: 8px 4px 0;
 }
-.map-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
-.map-legend .dot-flug { background: #E8703A; }
-.map-legend .hint { opacity: 0.75; }
+.map-legend .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+.map-legend .dot-flug { background: var(--sunset); }
+.map-legend .hint { opacity: 0.7; }
 
+/* Städte-Liste */
 .city-row {
   display: grid;
   grid-template-columns: 1fr auto auto auto;
   gap: 12px; align-items: baseline;
   background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-  padding: 10px 14px; margin-bottom: 6px;
-  font-size: 14.5px; font-variant-numeric: tabular-nums;
+  padding: 9px 14px; margin-bottom: 6px;
+  font-size: 14px; font-variant-numeric: tabular-nums;
 }
 .city-row .c-name { font-weight: 600; }
-.city-row .c-cc { font-weight: 400; font-size: 12px; color: var(--muted); letter-spacing: 0.06em; }
-.city-row .c-count { color: var(--accent-text); font-weight: 600; }
-.city-row .c-km { color: var(--muted); font-size: 13px; }
-.city-row .c-last { color: var(--muted); font-size: 12.5px; }
+.city-row .c-cc { font-family: var(--mono); font-weight: 400; font-size: 10.5px; color: var(--muted); letter-spacing: 0.1em; }
+.city-row .c-count { font-family: var(--mono); color: var(--sunset); font-weight: 600; font-size: 13px; }
+.city-row .c-km { font-family: var(--mono); color: var(--muted); font-size: 12px; }
+.city-row .c-last { font-family: var(--mono); color: var(--muted); font-size: 11.5px; }
 @media (max-width: 480px) { .city-row .c-last { display: none; } }
 
+/* Logbuch */
 .trip {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 4px 12px;
+  gap: 2px 12px;
   background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-  padding: 10px 14px; margin-bottom: 8px;
-  font-size: 14.5px;
+  padding: 9px 14px; margin-bottom: 6px;
+  font-size: 14px;
 }
 .trip .r { font-weight: 600; }
-.trip .d { color: var(--muted); font-size: 13px; }
-.trip .km { font-variant-numeric: tabular-nums; color: var(--accent-text); font-weight: 600; align-self: center; }
+.trip .d { font-family: var(--mono); color: var(--muted); font-size: 11.5px; }
+.trip .km { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--sunset); font-weight: 600; font-size: 13px; align-self: center; }
 
 footer {
-  max-width: 640px; margin: 40px auto 0; padding: 18px;
+  max-width: 640px; margin: 40px auto 0; padding: 16px 18px 32px;
   border-top: 1px solid var(--line);
-  font-size: 12.5px; color: var(--muted); text-align: center;
+  font-family: var(--mono);
+  font-size: 11px; letter-spacing: 0.06em; color: var(--muted); text-align: center;
 }
-footer a { color: var(--accent-text); }
+footer a { color: var(--sunset); }
