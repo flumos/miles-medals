@@ -118,6 +118,16 @@ button.dismiss {
   margin-top: 2px;
 }
 .year-km small { font-size: 0.32em; font-weight: 400; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; }
+.modal-split { display: grid; gap: 6px; margin-top: 12px; }
+.ms-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; }
+.ms-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.ms-bar { position: relative; height: 8px; border-radius: 4px; background: var(--card2); border: 1px solid var(--line); overflow: hidden; }
+.ms-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; transition: width 0.4s; }
+.ms-bar .ms-flug { background: var(--sunset); }
+.ms-bar .ms-bahn { background: var(--teal); }
+.ms-bar .ms-auto { background: var(--gold); }
+.ms-val { font-family: var(--mono); font-size: 11.5px; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
 @media (max-width: 480px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
 .tile { border: 1px solid var(--line); background: var(--card2); border-radius: 8px; padding: 8px 10px 7px; }

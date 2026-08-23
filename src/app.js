@@ -1,8 +1,8 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=15";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=15";
-import { guessJourney, findStationBest } from "./fcb.js?v=15";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=16";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=16";
+import { guessJourney, findStationBest } from "./fcb.js?v=16";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -341,6 +341,23 @@ function render() {
   $("statCities").textContent = cities.size;
   $("statCountries").textContent = countries.size;
   $("statEarth").textContent = (km / 40075).toLocaleString("de-DE", { maximumFractionDigits: 1 }) + "×";
+
+  // Modal-Split: km je Verkehrsmittel
+  const modes = [
+    { key: "flight", label: "Flug", cls: "ms-flug" },
+    { key: "train",  label: "Bahn", cls: "ms-bahn" },
+    { key: "car",    label: "Auto", cls: "ms-auto" },
+  ];
+  const kmBy = {};
+  yTrips.forEach((t) => { kmBy[t.mode || "flight"] = (kmBy[t.mode || "flight"] || 0) + (t.km || 0); });
+  $("modalSplit").innerHTML = modes.filter((m) => kmBy[m.key]).map((m) => {
+    const v = kmBy[m.key], pct = km ? Math.round((v / km) * 100) : 0;
+    return `<div class="ms-row">
+      <span class="ms-label">${m.label}</span>
+      <span class="ms-bar"><i class="${m.cls}" style="width:${pct}%"></i></span>
+      <span class="ms-val">${v.toLocaleString("de-DE")} km · ${pct} %</span>
+    </div>`;
+  }).join("");
 
   // Status-Fortschritt: Segmente + Elite-Nächte
   $("segVal").textContent = yFlights.length;
