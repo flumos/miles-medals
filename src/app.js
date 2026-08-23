@@ -1,8 +1,8 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=12";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=12";
-import { guessJourney, findStationBest } from "./fcb.js?v=12";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=13";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=13";
+import { guessJourney, findStationBest } from "./fcb.js?v=13";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -341,44 +341,68 @@ function render() {
         <span class="c-last">${c.last}</span>
       </div>`).join("");
 
-  $("tripList").innerHTML = renderReisen(trips, stays);
+  $("tripList").innerHTML = renderDays(trips, stays);
 }
 
-// ---------- Reise-Gruppierung: Etappen + Übernachtungen, die zeitlich zusammenhängen ----------
-function renderReisen(trips, stays) {
-  const events = [
-    ...trips.map((t) => ({ kind: "leg", start: t.date, end: t.date, t })),
-    ...stays.map((st) => ({ kind: "stay", start: st.from, end: st.to, st })),
-  ].filter((e) => e.start).sort((a, b) => (a.start < b.start ? -1 : 1));
+// ---------- Tages-Timeline: Basis-Einheit Tag, Übernachtungen als Balken ----------
+function renderDays(trips, stays) {
   const addDays = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-  const groups = [];
-  for (const e of events) {
-    const g = groups[groups.length - 1];
-    if (g && e.start <= addDays(g.end, 2)) { g.events.push(e); if (e.end > g.end) g.end = e.end; }
-    else groups.push({ start: e.start, end: e.end, events: [e] });
+  const legsByDay = {};
+  for (const t of trips) (legsByDay[t.date] = legsByDay[t.date] || []).push(t);
+  const nightByDay = {};   // Tag → Stay (Nacht auf diesen Tag folgend)
+  for (const st of stays) for (const n of stayNights(st)) nightByDay[n] = st;
+
+  const dates = [...Object.keys(legsByDay), ...Object.keys(nightByDay)].sort();
+  if (!dates.length) return "";
+  const min = dates[0];
+  const today = new Date().toISOString().slice(0, 10);
+  const max = dates[dates.length - 1] > today ? dates[dates.length - 1] : today;
+
+  const WD = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+  const MON = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  const rows = [];
+  let emptyRun = [];
+  const flushEmpty = () => {
+    if (emptyRun.length > 3) {
+      rows.push(`<div class="day-row day-gap"><span class="d-track"></span><span class="d-date"></span><span class="d-main">· ${emptyRun.length} Tage ·</span></div>`);
+    } else {
+      for (const d of emptyRun.reverse()) rows.push(dayRow(d, [], null));
+    }
+    emptyRun = [];
+  };
+  function dayRow(d, legs, night) {
+    const wd = WD[new Date(d + "T12:00:00Z").getUTCDay()];
+    const date = `<span class="d-date">${wd} ${d.slice(8, 10)}.${d.slice(5, 7)}.</span>`;
+    let track = '<span class="d-track"></span>';
+    if (night) {
+      const isStart = night.from === d, isEnd = addDays(night.to, -1) === d;
+      track = `<span class="d-track"><i class="bar${isStart ? " b-start" : ""}${isEnd ? " b-end" : ""}"></i></span>`;
+    } else if (legs.length) {
+      track = '<span class="d-track"><i class="dot"></i></span>';
+    }
+    const parts = [];
+    for (const t of legs) parts.push(`<span class="d-leg">${t.mode === "train" ? "🚆" : "✈"} ${esc(t.from)} → ${esc(t.to)}${t.km ? ` <em>${(t.mode === "train" ? "≈ " : "") + t.km.toLocaleString("de-DE")} km</em>` : ""}</span>`);
+    if (night && night.from === d) parts.push(`<span class="d-leg">🛏 ${esc(night.hotel || "Hotel")}${night.city ? ` <em>${esc(night.city)}</em>` : ""}</span>`);
+    const loc = night ? (night.city || night.hotel) : (legs.length ? legs[legs.length - 1].toCity : "");
+    const main = parts.length || loc
+      ? `<span class="d-main">${loc ? `<b>${esc(loc)}</b>` : ""}${parts.join("")}</span>`
+      : `<span class="d-main d-home">·</span>`;
+    return `<div class="day-row">${track}${date}${main}</div>`;
   }
-  const fmt = (iso) => iso.slice(8, 10) + "." + iso.slice(5, 7) + ".";
-  return groups.reverse().map((g) => {
-    const km = g.events.reduce((s, e) => s + (e.t?.km || 0), 0);
-    const nights = g.events.filter((e) => e.kind === "stay").reduce((s, e) => s + stayNights(e.st).length, 0);
-    // Reise-Titel: Ziel der weitesten Etappe, sonst Stadt der Übernachtung
-    const far = g.events.filter((e) => e.kind === "leg").sort((a, b) => (b.t.km || 0) - (a.t.km || 0))[0];
-    const title = far ? far.t.toCity : (g.events[0].st?.city || g.events[0].st?.hotel || "Reise");
-    const range = g.start === g.end ? fmt(g.start) : `${fmt(g.start)}–${fmt(g.end)}`;
-    const meta = [range, km ? km.toLocaleString("de-DE") + " km" : null, nights ? nights + (nights === 1 ? " Nacht" : " Nächte") : null].filter(Boolean).join(" · ");
-    const rows = g.events.map((e) => e.kind === "leg" ? `
-      <div class="reise-row">
-        <span class="ic">${e.t.mode === "train" ? "🚆" : "✈"}</span>
-        <span class="rr-main">${esc(e.t.from)} → ${esc(e.t.to)} <span>· ${e.t.date.slice(8, 10)}.${e.t.date.slice(5, 7)}. · ${esc(e.t.carrier)} ${esc(e.t.flightNo)}</span></span>
-        <span class="rr-km">${e.t.km ? (e.t.mode === "train" ? "≈ " : "") + e.t.km.toLocaleString("de-DE") + " km" : ""}</span>
-      </div>` : `
-      <div class="reise-row">
-        <span class="ic">🛏</span>
-        <span class="rr-main">${esc(e.st.hotel || "Hotel")} <span>· ${esc(e.st.city || "")}</span></span>
-        <span class="rr-km nights">${stayNights(e.st).length} ${stayNights(e.st).length === 1 ? "Nacht" : "Nächte"}</span>
-      </div>`).join("");
-    return `<div class="reise"><div class="reise-head"><span class="rt">${esc(title)}</span><span class="rm">${meta}</span></div>${rows}</div>`;
-  }).join("");
+
+  let lastMonth = "";
+  let d = max;
+  while (d >= min) {
+    const legs = legsByDay[d] || [];
+    const night = nightByDay[d] || null;
+    const month = d.slice(0, 7);
+    if (month !== lastMonth) { flushEmpty(); if (lastMonth) rows.push(""); rows.push(`<div class="day-month">${MON[+d.slice(5, 7) - 1]} ${d.slice(0, 4)}</div>`); lastMonth = month; }
+    if (!legs.length && !night) emptyRun.push(d);
+    else { flushEmpty(); rows.push(dayRow(d, legs, night)); }
+    d = addDays(d, -1);
+  }
+  flushEmpty();
+  return rows.join("");
 }
 
 // ---------- Wiring ----------

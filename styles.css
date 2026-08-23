@@ -150,25 +150,34 @@ button.dismiss {
 }
 .stay-grid input::placeholder { color: var(--muted); }
 
-/* Reise-Gruppen im Logbuch */
-.reise {
-  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
-  padding: 12px 14px; margin-bottom: 10px;
+/* Tages-Timeline im Logbuch */
+.day-month {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--gold); margin: 18px 0 6px;
 }
-.reise-head {
-  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
-  border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: 8px;
+.day-row {
+  display: grid; grid-template-columns: 14px 68px 1fr; gap: 0 10px; align-items: baseline;
+  padding: 2px 0; font-size: 13.5px;
 }
-.reise-head .rt { font-weight: 700; font-size: 15px; }
-.reise-head .rm { font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
-.reise-row {
-  display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: baseline;
-  font-size: 13.5px; padding: 3px 0;
+.d-track { position: relative; align-self: stretch; }
+.d-track .bar {
+  position: absolute; left: 4px; top: -2px; bottom: -2px; width: 5px;
+  background: var(--gold); opacity: 0.85;
 }
-.reise-row .ic { text-align: center; }
-.reise-row .rr-km { font-family: var(--mono); font-size: 12px; color: var(--sunset); font-variant-numeric: tabular-nums; }
-.reise-row .rr-km.nights { color: var(--gold); }
-.reise-row .rr-main span { color: var(--muted); font-size: 12.5px; }
+.d-track .bar.b-start { top: 3px; border-radius: 3px 3px 0 0; }
+.d-track .bar.b-end { bottom: 3px; border-radius: 0 0 3px 3px; }
+.d-track .bar.b-start.b-end { border-radius: 3px; }
+.d-track .dot {
+  position: absolute; left: 2px; top: 50%; margin-top: -4px;
+  width: 8px; height: 8px; border-radius: 50%; background: var(--sunset);
+}
+.d-date { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.d-main { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; min-width: 0; }
+.d-main b { font-weight: 600; }
+.d-main .d-leg { color: var(--ink); }
+.d-main .d-leg em { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.d-home { color: var(--line); }
+.day-gap .d-main { font-family: var(--mono); font-size: 10.5px; color: var(--muted); opacity: 0.7; }
 
 /* Karte */
 .map-section h2 { margin-bottom: 10px; }
