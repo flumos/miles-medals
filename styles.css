@@ -119,6 +119,25 @@ button.dismiss {
 .tile .n { font-family: "Staatliches", sans-serif; font-size: 24px; font-variant-numeric: tabular-nums; }
 .tile .l { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #BFD0C6; }
 
+/* Status-Fortschritt im Jahres-Panel */
+.status { margin-top: 16px; border-top: 1px solid rgba(242,232,213,0.18); padding-top: 12px; }
+.status-row {
+  display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: center;
+  margin-bottom: 8px; font-size: 12.5px;
+}
+.status-label { letter-spacing: 0.06em; text-transform: uppercase; font-size: 10.5px; color: #BFD0C6; }
+.status-bar { position: relative; height: 10px; border-radius: 5px; background: rgba(242,232,213,0.12); overflow: visible; }
+.status-bar i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 5px; background: #E9B44C; transition: width 0.4s; }
+.status-bar b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: rgba(242,232,213,0.55); }
+.status-val { font-variant-numeric: tabular-nums; color: #F2E8D5; white-space: nowrap; }
+.status-val button {
+  font: inherit; font-size: 11px; margin-left: 6px; padding: 2px 8px;
+  background: rgba(242,232,213,0.14); color: #F2E8D5; border: none; border-radius: 6px; cursor: pointer;
+}
+.status-val button:hover { background: rgba(242,232,213,0.24); }
+.status-note { font-size: 11px; color: #9FB3A7; margin: 8px 0 0; }
+.year { margin-top: 24px; margin-bottom: 26px; }
+
 /* Karte — Instrument-Register (Ranger v0.3) */
 .map-section h2 { margin-bottom: 10px; }
 #map {

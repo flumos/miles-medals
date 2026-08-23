@@ -14,6 +14,10 @@ async function airports() {
 // ---------- Storage ----------
 const loadTrips = () => JSON.parse(localStorage.getItem(STORE_KEY) || "[]");
 const saveTrips = (t) => localStorage.setItem(STORE_KEY, JSON.stringify(t));
+const NIGHTS_KEY = "mm_nights_v1";           // manuell nachgetragene Hotelnächte (ISO-Daten)
+const loadNights = () => JSON.parse(localStorage.getItem(NIGHTS_KEY) || "[]");
+const saveNights = (n) => localStorage.setItem(NIGHTS_KEY, JSON.stringify(n));
+const SEG_GOAL = 30;                          // Vielflieger-Segment-Ziel (später konfigurierbar)
 
 // ---------- Barcode → Inbox ----------
 ZXingWASM.prepareZXingModule({
@@ -199,21 +203,38 @@ async function renderMap(trips) {
 // ---------- Rendering ----------
 function render() {
   const trips = loadTrips();
-  const has = trips.length > 0;
-  $("year").hidden = $("collection").hidden = $("log").hidden = $("mapSection").hidden = !has;
+  const nights = loadNights();
+  const has = trips.length > 0 || nights.length > 0;
+  $("year").hidden = $("log").hidden = !has;
+  $("collection").hidden = $("mapSection").hidden = trips.length === 0;
   $("inbox").hidden = $("inboxCards").children.length === 0;
   if (!has) return;
 
-  const km = trips.reduce((s, t) => s + (t.km || 0), 0);
+  // Jahres-Panel: das Jahr der jüngsten Reise (i. d. R. das aktuelle)
+  const year = trips.length ? Math.max(...trips.map((t) => +t.date.slice(0, 4) || 0)) : new Date().getFullYear();
+  const inYear = (iso) => iso && iso.startsWith(String(year));
+  const yTrips = trips.filter((t) => inYear(t.date));
+  const yNights = nights.filter(inYear).length;
+  $("yearTitle").textContent = `Dein Reisejahr ${year}`;
+
+  const km = yTrips.reduce((s, t) => s + (t.km || 0), 0);
   const cities = new Map();
-  trips.forEach((t) => cities.set(t.toCity, (cities.get(t.toCity) || 0) + 1));
-  const countries = new Set(trips.map((t) => t.toCountry).filter(Boolean));
+  yTrips.forEach((t) => cities.set(t.toCity, (cities.get(t.toCity) || 0) + 1));
+  const countries = new Set(yTrips.map((t) => t.toCountry).filter(Boolean));
 
   $("statKm").textContent = km.toLocaleString("de-DE");
-  $("statFlights").textContent = trips.length;
+  $("statFlights").textContent = yTrips.length;
   $("statCities").textContent = cities.size;
   $("statCountries").textContent = countries.size;
   $("statEarth").textContent = (km / 40075).toLocaleString("de-DE", { maximumFractionDigits: 1 }) + "×";
+
+  // Status-Fortschritt: Segmente + Elite-Nächte
+  $("segVal").textContent = yTrips.length;
+  $("segGoal").textContent = SEG_GOAL;
+  $("segBar").style.width = Math.min(100, (yTrips.length / SEG_GOAL) * 100) + "%";
+  $("segMark").style.left = "100%";
+  $("nightVal").textContent = yNights;
+  $("nightBar").style.width = Math.min(100, (yNights / 50) * 100) + "%";
 
   renderMap(trips);
 
@@ -241,13 +262,20 @@ dz.addEventListener("drop", (e) => handleFiles([...e.dataTransfer.files]));
 
 $("exportBtn").addEventListener("click", (e) => {
   e.preventDefault();
-  const blob = new Blob([JSON.stringify(loadTrips(), null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify({ trips: loadTrips(), nights: loadNights() }, null, 2)], { type: "application/json" });
   const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "miles-medals-export.json" });
   a.click();
 });
+$("addNight").addEventListener("click", () => {
+  const n = loadNights();
+  n.push(new Date().toISOString().slice(0, 10));
+  saveNights(n);
+  render();
+});
+
 $("resetBtn").addEventListener("click", (e) => {
   e.preventDefault();
-  if (confirm("Wirklich alle Reisen löschen? (Vorher exportieren?)")) { localStorage.removeItem(STORE_KEY); render(); }
+  if (confirm("Wirklich alle Reisen löschen? (Vorher exportieren?)")) { localStorage.removeItem(STORE_KEY); localStorage.removeItem(NIGHTS_KEY); render(); }
 });
 
 render();

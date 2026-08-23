@@ -18,6 +18,32 @@
 </header>
 
 <main>
+  <section id="year" class="year" hidden>
+    <div class="year-head">
+      <div class="eyebrow" id="yearTitle">Dein Reisejahr</div>
+      <div class="year-km"><span id="statKm">0</span><small> km geflogen</small></div>
+    </div>
+    <div class="tiles">
+      <div class="tile"><div class="n" id="statFlights">0</div><div class="l">Flüge</div></div>
+      <div class="tile"><div class="n" id="statCities">0</div><div class="l">Städte</div></div>
+      <div class="tile"><div class="n" id="statCountries">0</div><div class="l">Länder</div></div>
+      <div class="tile"><div class="n" id="statEarth">0×</div><div class="l">um die Erde</div></div>
+    </div>
+    <div class="status">
+      <div class="status-row">
+        <div class="status-label">Flug-Segmente</div>
+        <div class="status-bar"><i id="segBar"></i><b id="segMark" title="Ziel"></b></div>
+        <div class="status-val"><span id="segVal">0</span>/<span id="segGoal">30</span></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Elite-Nächte</div>
+        <div class="status-bar"><i id="nightBar"></i><b style="left:50%" title="Gold ab 25"></b></div>
+        <div class="status-val"><span id="nightVal">0</span>/50 <button id="addNight" title="Hotelnacht nachtragen (heute)">+ Nacht</button></div>
+      </div>
+      <p class="status-note">Status-Fortschritt aus deinen Belegen — Segmente zählen für Vielflieger-Stufen, Nächte für Hotel-Stati (Gold ab 25, Platin ab 50). Programm-Zuordnung kommt in der App.</p>
+    </div>
+  </section>
+
   <section id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Boardingpass hochladen">
     <div class="dz-inner">
       <div class="dz-icon" aria-hidden="true">🎫</div>
@@ -29,19 +55,6 @@
   <section id="inbox" class="inbox" hidden>
     <h2>Inbox</h2>
     <div id="inboxCards"></div>
-  </section>
-
-  <section id="year" class="year" hidden>
-    <div class="year-head">
-      <div class="eyebrow">Dein Reisejahr</div>
-      <div class="year-km"><span id="statKm">0</span><small> km geflogen</small></div>
-    </div>
-    <div class="tiles">
-      <div class="tile"><div class="n" id="statFlights">0</div><div class="l">Flüge</div></div>
-      <div class="tile"><div class="n" id="statCities">0</div><div class="l">Städte</div></div>
-      <div class="tile"><div class="n" id="statCountries">0</div><div class="l">Länder</div></div>
-      <div class="tile"><div class="n" id="statEarth">0×</div><div class="l">um die Erde</div></div>
-    </div>
   </section>
 
   <section id="mapSection" class="map-section" hidden>
