@@ -7,14 +7,14 @@
 <meta name="description" content="Boardingpass rein, Reisejahr raus. Läuft komplett im Browser — nichts verlässt dein Gerät.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=13">
+<link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
 
 <header class="hero">
   <div class="eyebrow">Miles &amp; Medals · Testlabor</div>
   <h1>Dein Reisejahr beginnt hier</h1>
-  <p>Boardingpass-Foto, Screenshot oder Wallet-Pass hier ablegen — der Barcode wird direkt im Browser gelesen. <strong>Nichts verlässt dein Gerät.</strong></p>
+  <p>Belege rein, Reisejahr raus. <strong>Nichts verlässt dein Gerät.</strong></p>
 </header>
 
 <main>
@@ -44,16 +44,23 @@
     </div>
   </section>
 
-  <section id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Boardingpass hochladen">
-    <div class="dz-inner">
-      <div class="dz-icon" aria-hidden="true">🎫</div>
-      <div class="dz-text"><strong>Boardingpass hierher ziehen</strong><br>oder tippen zum Auswählen</div>
+  <section class="capture">
+    <div id="dropzone" class="cap-tile" tabindex="0" role="button" aria-label="Beleg hochladen (Boardingpass, Bahnticket)">
+      <span class="ci" aria-hidden="true">🎫</span>
+      <span class="cl">Beleg<em>Foto oder Screenshot</em></span>
       <input type="file" id="fileInput" accept="image/*" multiple hidden>
     </div>
+    <button id="stayToggle" class="cap-tile" aria-expanded="false">
+      <span class="ci" aria-hidden="true">🛏</span>
+      <span class="cl">Übernachtung<em>eintragen</em></span>
+    </button>
+    <button id="checkinBtn" class="cap-tile">
+      <span class="ci" aria-hidden="true">📍</span>
+      <span class="cl">Hier<em>Standort loggen</em></span>
+    </button>
   </section>
 
-  <section class="stay-form">
-    <h2>Übernachtung nachtragen</h2>
+  <section id="stayForm" class="stay-form" hidden>
     <div class="stay-grid">
       <input id="stayHotel" placeholder="Hotel (z. B. Marriott Frankfurt)" aria-label="Hotelname">
       <input id="stayCity" placeholder="Stadt" aria-label="Stadt">
@@ -74,6 +81,7 @@
     <div class="map-legend">
       <span><i class="dot dot-flug"></i>FLUG</span>
       <span><i class="dot dot-bahn"></i>BAHN ≈</span>
+      <span><i class="dot dot-ort"></i>ORT</span>
       <span class="hint">NODE-RING = BESUCHE</span>
     </div>
   </section>
@@ -90,11 +98,11 @@
 </main>
 
 <footer>
-  <span>Testlabor <b id="appver">v13</b> · lokal &amp; privat · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
+  <span>Testlabor <b id="appver">v14</b> · lokal &amp; privat · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
 </footer>
 
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/zxing-full.iife.js"></script>
-<script type="module" src="src/app.js?v=13"></script>
+<script type="module" src="src/app.js?v=14"></script>
 </body>
 </html>

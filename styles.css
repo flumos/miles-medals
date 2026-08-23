@@ -41,21 +41,25 @@ h2 {
   margin: 34px 0 12px;
 }
 
-/* Dropzone */
-.dropzone {
-  border: 1.5px dashed var(--line);
-  border-radius: 12px;
-  background: var(--card);
-  padding: 26px 16px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color 0.15s;
+/* Erfassen-Leiste */
+.capture { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cap-tile {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card); border: 1.5px dashed var(--line); border-radius: 12px;
+  padding: 12px 14px; cursor: pointer; text-align: left;
+  color: var(--ink); font: inherit;
 }
-.dropzone:hover, .dropzone:focus-visible, .dropzone.drag { border-color: var(--sunset); outline: none; }
-.dz-icon { font-size: 26px; margin-bottom: 4px; }
-.dz-text { color: var(--muted); font-size: 13.5px; }
-.dz-text strong { color: var(--ink); font-size: 15px; font-weight: 600; }
-.dropzone.busy { opacity: 0.6; pointer-events: none; }
+button.cap-tile { border-style: solid; }
+.cap-tile:hover, .cap-tile:focus-visible, .cap-tile.drag { border-color: var(--sunset); outline: none; }
+.cap-tile.busy { opacity: 0.6; pointer-events: none; }
+.cap-tile .ci { font-size: 20px; }
+.cap-tile .cl { font-size: 13px; font-weight: 600; line-height: 1.25; }
+.cap-tile .cl em { display: block; font-style: normal; font-weight: 400; font-size: 11px; color: var(--muted); }
+@media (max-width: 560px) {
+  .capture { grid-template-columns: 1fr; }
+  .cap-tile { padding: 10px 14px; }
+}
+.stay-form { margin-top: 8px; }
 
 /* Inbox */
 .inbox-card {
@@ -171,6 +175,7 @@ button.dismiss {
   position: absolute; left: 2px; top: 50%; margin-top: -4px;
   width: 8px; height: 8px; border-radius: 50%; background: var(--sunset);
 }
+.d-track .dot-checkin { background: #F2997B; }
 .d-date { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
 .d-main { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; min-width: 0; }
 .d-main b { font-weight: 600; }
@@ -200,6 +205,7 @@ button.dismiss {
 .map-legend .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
 .map-legend .dot-flug { background: var(--sunset); }
 .map-legend .dot-bahn { background: var(--teal); }
+.map-legend .dot-ort { background: #F2997B; }
 .map-legend .hint { opacity: 0.7; }
 
 /* Städte-Liste */

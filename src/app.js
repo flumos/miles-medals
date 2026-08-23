@@ -1,8 +1,8 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=13";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=13";
-import { guessJourney, findStationBest } from "./fcb.js?v=13";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=14";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=14";
+import { guessJourney, findStationBest } from "./fcb.js?v=14";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -47,6 +47,22 @@ const saveNights = (n) => localStorage.setItem(NIGHTS_KEY, JSON.stringify(n));
 const STAYS_KEY = "mm_stays_v1";             // Übernachtungen: {hotel, city, from, to}
 const loadStays = () => JSON.parse(localStorage.getItem(STAYS_KEY) || "[]");
 const saveStays = (x) => localStorage.setItem(STAYS_KEY, JSON.stringify(x));
+const CHECKINS_KEY = "mm_checkins_v1";       // Standort-Logs: {date, city, lat, lon}
+const loadCheckins = () => JSON.parse(localStorage.getItem(CHECKINS_KEY) || "[]");
+const saveCheckins = (x) => localStorage.setItem(CHECKINS_KEY, JSON.stringify(x));
+
+// Nächstgelegene Stadt aus den lokalen Datenbanken (Bahnhöfe + Flughäfen) — kein Geocoding-Dienst
+async function nearestCity(lat, lon) {
+  const [ap, st] = [await airports(), await stations()];
+  let best = null;
+  const consider = (plat, plon, city) => {
+    const d = greatCircleKm([lat, lon], [plat, plon]);
+    if (!best || d < best.d) best = { d, city };
+  };
+  for (const v of Object.values(st)) consider(v[0], v[1], v[3]);
+  for (const v of Object.values(ap)) consider(v[0], v[1], v[2]);
+  return best && best.d < 80 ? best.city : `${lat.toFixed(2)}° / ${lon.toFixed(2)}°`;
+}
 // Nächte eines Aufenthalts als ISO-Daten (Anreise bis Tag vor Abreise)
 function stayNights(stay) {
   const out = [];
@@ -240,7 +256,7 @@ function greatCircleArc(a, b, n = 48) {
   return pts;
 }
 
-async function renderMap(trips) {
+async function renderMap(trips, checkins) {
   const db = await airports();
   ensureMap();
   mapLayer.clearLayers();
@@ -259,6 +275,9 @@ async function renderMap(trips) {
     if (pa && pb) L.polyline(greatCircleArc(pa, pb), {
       color, weight: 1, opacity: 0.7, interactive: false,
     }).addTo(mapLayer);
+  }
+  for (const c of (checkins || [])) {
+    if (c.lat != null) bumpPos(c.city, [c.lat, c.lon], true, "#F2997B");
   }
   const bounds = [];
   for (const [code, v] of visits) {
@@ -287,8 +306,9 @@ async function renderMap(trips) {
 function render() {
   const trips = loadTrips();
   const stays = loadStays();
+  const checkins = loadCheckins();
   const nights = [...loadNights(), ...stays.flatMap(stayNights)];
-  const has = trips.length > 0 || nights.length > 0;
+  const has = trips.length > 0 || nights.length > 0 || checkins.length > 0;
   $("year").hidden = $("log").hidden = !has;
   $("collection").hidden = $("mapSection").hidden = trips.length === 0;
   $("inbox").hidden = $("inboxCards").children.length === 0;
@@ -304,6 +324,7 @@ function render() {
   const km = yTrips.reduce((s, t) => s + (t.km || 0), 0);
   const cities = new Map();
   yTrips.forEach((t) => cities.set(t.toCity, (cities.get(t.toCity) || 0) + 1));
+  checkins.filter((c) => inYear(c.date)).forEach((c) => cities.set(c.city, (cities.get(c.city) || 0) + 1));
   const countries = new Set(yTrips.map((t) => t.toCountry).filter(Boolean));
 
   $("statKm").textContent = km.toLocaleString("de-DE");
@@ -321,10 +342,15 @@ function render() {
   $("nightVal").textContent = yNights;
   $("nightBar").style.width = Math.min(100, (yNights / 50) * 100) + "%";
 
-  renderMap(trips);
+  renderMap(trips, checkins);
 
   // Städte-Liste (Lebens-Sicht, nüchtern): Stadt · Land · Besuche · letzte Reise
   const cityStats = new Map();
+  for (const c of checkins) {
+    const e = cityStats.get(c.city) || { country: null, count: 0, km: 0, last: "" };
+    e.count++; if (c.date > e.last) e.last = c.date;
+    cityStats.set(c.city, e);
+  }
   for (const t of trips) {
     const c = cityStats.get(t.toCity) || { country: t.toCountry, count: 0, km: 0, last: "" };
     c.count++; c.km += t.km || 0;
@@ -341,18 +367,20 @@ function render() {
         <span class="c-last">${c.last}</span>
       </div>`).join("");
 
-  $("tripList").innerHTML = renderDays(trips, stays);
+  $("tripList").innerHTML = renderDays(trips, stays, checkins);
 }
 
 // ---------- Tages-Timeline: Basis-Einheit Tag, Übernachtungen als Balken ----------
-function renderDays(trips, stays) {
+function renderDays(trips, stays, checkins) {
   const addDays = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const legsByDay = {};
   for (const t of trips) (legsByDay[t.date] = legsByDay[t.date] || []).push(t);
   const nightByDay = {};   // Tag → Stay (Nacht auf diesen Tag folgend)
   for (const st of stays) for (const n of stayNights(st)) nightByDay[n] = st;
+  const checkinsByDay = {};
+  for (const c of checkins) (checkinsByDay[c.date] = checkinsByDay[c.date] || []).push(c);
 
-  const dates = [...Object.keys(legsByDay), ...Object.keys(nightByDay)].sort();
+  const dates = [...Object.keys(legsByDay), ...Object.keys(nightByDay), ...Object.keys(checkinsByDay)].sort();
   if (!dates.length) return "";
   const min = dates[0];
   const today = new Date().toISOString().slice(0, 10);
@@ -370,7 +398,7 @@ function renderDays(trips, stays) {
     }
     emptyRun = [];
   };
-  function dayRow(d, legs, night) {
+  function dayRow(d, legs, night, checks) {
     const wd = WD[new Date(d + "T12:00:00Z").getUTCDay()];
     const date = `<span class="d-date">${wd} ${d.slice(8, 10)}.${d.slice(5, 7)}.</span>`;
     let track = '<span class="d-track"></span>';
@@ -379,11 +407,14 @@ function renderDays(trips, stays) {
       track = `<span class="d-track"><i class="bar${isStart ? " b-start" : ""}${isEnd ? " b-end" : ""}"></i></span>`;
     } else if (legs.length) {
       track = '<span class="d-track"><i class="dot"></i></span>';
+    } else if (checks && checks.length) {
+      track = '<span class="d-track"><i class="dot dot-checkin"></i></span>';
     }
     const parts = [];
     for (const t of legs) parts.push(`<span class="d-leg">${t.mode === "train" ? "🚆" : "✈"} ${esc(t.from)} → ${esc(t.to)}${t.km ? ` <em>${(t.mode === "train" ? "≈ " : "") + t.km.toLocaleString("de-DE")} km</em>` : ""}</span>`);
     if (night && night.from === d) parts.push(`<span class="d-leg">🛏 ${esc(night.hotel || "Hotel")}${night.city ? ` <em>${esc(night.city)}</em>` : ""}</span>`);
-    const loc = night ? (night.city || night.hotel) : (legs.length ? legs[legs.length - 1].toCity : "");
+    for (const c of (checks || [])) parts.push(`<span class="d-leg">📍 ${esc(c.city)}</span>`);
+    const loc = night ? (night.city || night.hotel) : (legs.length ? legs[legs.length - 1].toCity : (checks && checks.length ? checks[0].city : ""));
     const main = parts.length || loc
       ? `<span class="d-main">${loc ? `<b>${esc(loc)}</b>` : ""}${parts.join("")}</span>`
       : `<span class="d-main d-home">·</span>`;
@@ -395,10 +426,11 @@ function renderDays(trips, stays) {
   while (d >= min) {
     const legs = legsByDay[d] || [];
     const night = nightByDay[d] || null;
+    const checks = checkinsByDay[d] || null;
     const month = d.slice(0, 7);
     if (month !== lastMonth) { flushEmpty(); if (lastMonth) rows.push(""); rows.push(`<div class="day-month">${MON[+d.slice(5, 7) - 1]} ${d.slice(0, 4)}</div>`); lastMonth = month; }
-    if (!legs.length && !night) emptyRun.push(d);
-    else { flushEmpty(); rows.push(dayRow(d, legs, night)); }
+    if (!legs.length && !night && !checks) emptyRun.push(d);
+    else { flushEmpty(); rows.push(dayRow(d, legs, night, checks)); }
     d = addDays(d, -1);
   }
   flushEmpty();
@@ -416,10 +448,34 @@ dz.addEventListener("drop", (e) => handleFiles([...e.dataTransfer.files]));
 
 $("exportBtn").addEventListener("click", (e) => {
   e.preventDefault();
-  const blob = new Blob([JSON.stringify({ trips: loadTrips(), stays: loadStays(), nights: loadNights() }, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify({ trips: loadTrips(), stays: loadStays(), checkins: loadCheckins(), nights: loadNights() }, null, 2)], { type: "application/json" });
   const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "miles-medals-export.json" });
   a.click();
 });
+$("stayToggle").addEventListener("click", () => {
+  const f = $("stayForm");
+  f.hidden = !f.hidden;
+  $("stayToggle").setAttribute("aria-expanded", String(!f.hidden));
+  if (!f.hidden) $("stayHotel").focus();
+});
+
+$("checkinBtn").addEventListener("click", () => {
+  if (!navigator.geolocation) { showError("Standort", "Dein Browser gibt keinen Standort her."); return; }
+  $("checkinBtn").classList.add("busy");
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    const city = await nearestCity(lat, lon);
+    const list = loadCheckins();
+    list.push({ date: new Date().toISOString().slice(0, 10), city, lat: +lat.toFixed(4), lon: +lon.toFixed(4) });
+    saveCheckins(list);
+    $("checkinBtn").classList.remove("busy");
+    render();
+  }, (err) => {
+    $("checkinBtn").classList.remove("busy");
+    showError("Standort", "Kein Standort: " + err.message);
+  }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
+});
+
 $("stayAdd").addEventListener("click", () => {
   const stay = { hotel: $("stayHotel").value.trim(), city: $("stayCity").value.trim(),
                  from: $("stayFrom").value, to: $("stayTo").value };
@@ -429,12 +485,14 @@ $("stayAdd").addEventListener("click", () => {
   stays.push(stay);
   saveStays(stays);
   ["stayHotel", "stayCity", "stayFrom", "stayTo"].forEach((id) => $(id).value = "");
+  $("stayForm").hidden = true;
+  $("stayToggle").setAttribute("aria-expanded", "false");
   render();
 });
 
 $("resetBtn").addEventListener("click", (e) => {
   e.preventDefault();
-  if (confirm("Wirklich alle Reisen löschen? (Vorher exportieren?)")) { localStorage.removeItem(STORE_KEY); localStorage.removeItem(NIGHTS_KEY); localStorage.removeItem(STAYS_KEY); render(); }
+  if (confirm("Wirklich alle Reisen löschen? (Vorher exportieren?)")) { localStorage.removeItem(STORE_KEY); localStorage.removeItem(NIGHTS_KEY); localStorage.removeItem(STAYS_KEY); localStorage.removeItem(CHECKINS_KEY); render(); }
 });
 
 async function migrateTripCodes() {
