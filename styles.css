@@ -181,6 +181,12 @@ button.dismiss {
 .d-main b { font-weight: 600; }
 .d-main .d-leg { color: var(--ink); }
 .d-main .d-leg em { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.d-leg .del {
+  font: inherit; font-size: 11px; margin-left: 6px; padding: 0 4px;
+  background: none; border: none; color: var(--line); cursor: pointer; border-radius: 4px;
+}
+.d-leg .del:hover, .d-leg .del:focus-visible { color: var(--sunset); outline: none; }
+.inbox-card input.attention { border-color: var(--sunset); box-shadow: 0 0 0 1px var(--sunset); }
 .d-home { color: var(--line); }
 .day-gap .d-main { font-family: var(--mono); font-size: 10.5px; color: var(--muted); opacity: 0.7; }
 

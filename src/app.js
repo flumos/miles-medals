@@ -1,8 +1,8 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=14";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=14";
-import { guessJourney, findStationBest } from "./fcb.js?v=14";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=15";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=15";
+import { guessJourney, findStationBest } from "./fcb.js?v=15";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -150,7 +150,8 @@ async function handleFiles(files) {
             fromPos: [j.from[0], j.from[1]], toPos: [j.to[0], j.to[1]],
             km: Math.round(greatCircleKm(j.from, j.to) * RAIL_DETOUR),
             carrier: "DB", flightNo: j.tarif || "FCB", seat: "",
-            date: isoDate(fileDate(file)) || new Date().toISOString().slice(0, 10),
+            date: "",                                    // FCB trägt kein lesbares Datum — Nutzer muss setzen
+            dateUnknown: true,
           });
           continue;
         }
@@ -202,8 +203,15 @@ function addInboxCard(flight) {
       <button class="confirm">In die Sammlung</button>
       <button class="dismiss">Verwerfen</button>
     </div>`;
+  if (flight.dateUnknown) {
+    card.querySelector("input").classList.add("attention");
+    card.querySelector(".meta").insertAdjacentHTML("beforeend", " · <b style=\"color:var(--sunset)\">Datum aus dem Ticket nicht lesbar — bitte setzen</b>");
+  }
+  card.querySelector("input").addEventListener("input", (e) => e.target.classList.remove("attention"));
   card.querySelector(".confirm").addEventListener("click", () => {
-    flight.date = card.querySelector("input").value || flight.date;
+    const dv = card.querySelector("input").value;
+    if (!dv && flight.dateUnknown) { alert("Bitte zuerst das Reisedatum setzen — das Ticketformat (FCB) enthält es nicht lesbar."); return; }
+    flight.date = dv || flight.date;
     const trips = loadTrips();
     trips.push(flight);
     trips.sort((x, y) => (x.date < y.date ? 1 : -1));
@@ -374,11 +382,11 @@ function render() {
 function renderDays(trips, stays, checkins) {
   const addDays = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const legsByDay = {};
-  for (const t of trips) (legsByDay[t.date] = legsByDay[t.date] || []).push(t);
+  trips.forEach((t, i) => (legsByDay[t.date] = legsByDay[t.date] || []).push({ ...t, _i: i }));
   const nightByDay = {};   // Tag → Stay (Nacht auf diesen Tag folgend)
-  for (const st of stays) for (const n of stayNights(st)) nightByDay[n] = st;
+  stays.forEach((st, i) => { for (const n of stayNights(st)) nightByDay[n] = { ...st, _i: i }; });
   const checkinsByDay = {};
-  for (const c of checkins) (checkinsByDay[c.date] = checkinsByDay[c.date] || []).push(c);
+  checkins.forEach((c, i) => (checkinsByDay[c.date] = checkinsByDay[c.date] || []).push({ ...c, _i: i }));
 
   const dates = [...Object.keys(legsByDay), ...Object.keys(nightByDay), ...Object.keys(checkinsByDay)].sort();
   if (!dates.length) return "";
@@ -411,9 +419,9 @@ function renderDays(trips, stays, checkins) {
       track = '<span class="d-track"><i class="dot dot-checkin"></i></span>';
     }
     const parts = [];
-    for (const t of legs) parts.push(`<span class="d-leg">${t.mode === "train" ? "🚆" : "✈"} ${esc(t.from)} → ${esc(t.to)}${t.km ? ` <em>${(t.mode === "train" ? "≈ " : "") + t.km.toLocaleString("de-DE")} km</em>` : ""}</span>`);
-    if (night && night.from === d) parts.push(`<span class="d-leg">🛏 ${esc(night.hotel || "Hotel")}${night.city ? ` <em>${esc(night.city)}</em>` : ""}</span>`);
-    for (const c of (checks || [])) parts.push(`<span class="d-leg">📍 ${esc(c.city)}</span>`);
+    for (const t of legs) parts.push(`<span class="d-leg">${t.mode === "train" ? "🚆" : "✈"} ${esc(t.from)} → ${esc(t.to)}${t.km ? ` <em>${(t.mode === "train" ? "≈ " : "") + t.km.toLocaleString("de-DE")} km</em>` : ""}<button class="del" data-k="trip" data-i="${t._i}" title="Eintrag löschen">✕</button></span>`);
+    if (night && night.from === d) parts.push(`<span class="d-leg">🛏 ${esc(night.hotel || "Hotel")}${night.city ? ` <em>${esc(night.city)}</em>` : ""}<button class="del" data-k="stay" data-i="${night._i}" title="Übernachtung löschen">✕</button></span>`);
+    for (const c of (checks || [])) parts.push(`<span class="d-leg">📍 ${esc(c.city)}<button class="del" data-k="checkin" data-i="${c._i}" title="Check-in löschen">✕</button></span>`);
     const loc = night ? (night.city || night.hotel) : (legs.length ? legs[legs.length - 1].toCity : (checks && checks.length ? checks[0].city : ""));
     const main = parts.length || loc
       ? `<span class="d-main">${loc ? `<b>${esc(loc)}</b>` : ""}${parts.join("")}</span>`
@@ -452,6 +460,20 @@ $("exportBtn").addEventListener("click", (e) => {
   const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "miles-medals-export.json" });
   a.click();
 });
+$("tripList").addEventListener("click", (e) => {
+  const btn = e.target.closest(".del");
+  if (!btn) return;
+  const { k, i } = btn.dataset;
+  const stores = { trip: [loadTrips, saveTrips], stay: [loadStays, saveStays], checkin: [loadCheckins, saveCheckins] };
+  const labels = { trip: "Etappe", stay: "Übernachtung", checkin: "Check-in" };
+  if (!confirm(`${labels[k]} wirklich löschen?`)) return;
+  const [load, save] = stores[k];
+  const list = load();
+  list.splice(+i, 1);
+  save(list);
+  render();
+});
+
 $("stayToggle").addEventListener("click", () => {
   const f = $("stayForm");
   f.hidden = !f.hidden;
