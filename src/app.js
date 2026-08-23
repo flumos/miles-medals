@@ -1,7 +1,7 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=6";
-import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js?v=6";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=7";
+import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js?v=7";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -49,6 +49,11 @@ async function handleFiles(files) {
         || results.find((r) => r.text && r.text.startsWith("#UT"));   // Fallback: Text-Repräsentation
       if (!bcbpHit && !uicHit) {
         if (!results.length) { showError(file.name, "Kein Barcode im Bild. Tipp: Im DB Navigator den Tab „Ticket“ öffnen (nicht „Reiseplan“) und den Aztec-Code screenshotten; bei Papier: näher und gerade fotografieren."); continue; }
+        // Bekannter Irrläufer: Buchungs-Link-QR der Bahn (aus der Bestätigung) statt Ticket-Aztec
+        if (results.some((r) => r.text && /bahn\.(de|com)/.test(r.text))) {
+          showError(file.name, "Das ist der Buchungs-Link-QR der Bahn — nicht das Ticket. Der Ticket-Code ist der quadratische Aztec-Code mit dem „Bullauge“ in der Mitte: im DB Navigator unter Reisen → Fahrt → Tab „Ticket“.");
+          continue;
+        }
         // Diagnose: Format + Inhalts-Anfang zeigen, damit unbekannte Ticketformate identifizierbar sind
         const diag = results.map((r) => {
           const b = r.bytes ? new Uint8Array(r.bytes) : null;
