@@ -1,8 +1,8 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=8";
-import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js?v=8";
-import { guessJourney } from "./fcb.js?v=8";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=9";
+import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js?v=9";
+import { guessJourney } from "./fcb.js?v=9";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -118,7 +118,7 @@ async function handleFiles(files) {
           if (!j) { showError(file.name, "Neues DB-Ticketformat (FCB) — Start/Ziel konnten heuristisch nicht erkannt werden. Das Bild hilft mir beim Parser-Ausbau."); continue; }
           addInboxCard({
             mode: "train",
-            from: j.from[2], to: j.to[2],
+            from: j.from[4] || j.from[2], to: j.to[4] || j.to[2],
             fromCity: j.from[3], toCity: j.to[3],
             toCountry: "DE",
             fromPos: [j.from[0], j.from[1]], toPos: [j.to[0], j.to[1]],
@@ -133,7 +133,7 @@ async function handleFiles(files) {
         const a = findStation(st, ticket.from), b = findStation(st, ticket.to);
         addInboxCard({
           mode: "train",
-          from: ticket.from, to: ticket.to,
+          from: (a && a[4]) || ticket.from, to: (b && b[4]) || ticket.to,
           fromCity: a ? a[3] : ticket.from, toCity: b ? b[3] : ticket.to,
           toCountry: (a && b) ? "DE" : null,
           fromPos: a ? [a[0], a[1]] : null, toPos: b ? [b[0], b[1]] : null,
@@ -360,4 +360,22 @@ $("resetBtn").addEventListener("click", (e) => {
   if (confirm("Wirklich alle Reisen löschen? (Vorher exportieren?)")) { localStorage.removeItem(STORE_KEY); localStorage.removeItem(NIGHTS_KEY); render(); }
 });
 
+async function migrateTripCodes() {
+  const trips = loadTrips();
+  if (!trips.some((t) => t.mode === "train" && t.from && t.from.length > 5)) return;
+  const st = await stations();
+  let changed = false;
+  for (const t of trips) {
+    if (t.mode !== "train") continue;
+    for (const k of ["from", "to"]) {
+      if (t[k] && t[k].length > 5) {
+        const hit = findStation(st, t[k]);
+        if (hit && hit[4]) { t[k] = hit[4]; changed = true; }
+      }
+    }
+  }
+  if (changed) saveTrips(trips);
+}
+
+migrateTripCodes().then(render);
 render();
