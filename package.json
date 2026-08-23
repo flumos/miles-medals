@@ -12,6 +12,7 @@
   "type": "module",
   "dependencies": {
     "db-stations": "^5.0.2",
+    "tesseract.js": "^7.0.0",
     "zxing-wasm": "^3.1.3"
   }
 }

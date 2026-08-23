@@ -7,7 +7,7 @@
 <meta name="description" content="Boardingpass rein, Reisejahr raus. Läuft komplett im Browser — nichts verlässt dein Gerät.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=16">
+<link rel="stylesheet" href="styles.css?v=17">
 </head>
 <body>
 
@@ -46,9 +46,9 @@
   </section>
 
   <section class="capture">
-    <div id="dropzone" class="cap-tile" tabindex="0" role="button" aria-label="Beleg hochladen (Boardingpass, Bahnticket)">
+    <div id="dropzone" class="cap-tile" tabindex="0" role="button" aria-label="Beleg hochladen (Boardingpass, Bahnticket, Hotelbestätigung)">
       <span class="ci" aria-hidden="true">🎫</span>
-      <span class="cl">Beleg<em>Foto oder Screenshot</em></span>
+      <span class="cl">Beleg<em>Ticket oder Hotel-Bestätigung</em></span>
       <input type="file" id="fileInput" accept="image/*" multiple hidden>
     </div>
     <button id="stayToggle" class="cap-tile" aria-expanded="false">
@@ -99,11 +99,11 @@
 </main>
 
 <footer>
-  <span>Testlabor <b id="appver">v16</b> · lokal &amp; privat · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
+  <span>Testlabor <b id="appver">v17</b> · lokal &amp; privat · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
 </footer>
 
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/zxing-full.iife.js"></script>
-<script type="module" src="src/app.js?v=16"></script>
+<script type="module" src="src/app.js?v=17"></script>
 </body>
 </html>

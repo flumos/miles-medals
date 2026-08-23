@@ -100,5 +100,27 @@ const journey = guessJourney(new Uint8Array(fcbFake), stations);
 ok(journey && journey.from[2] === "Hamburg Hbf", "FCB-Heuristik: Start erkannt (Hamburg+City → Hamburg Hbf)");
 ok(journey && journey.to[2].startsWith("Münster"), "FCB-Heuristik: Ziel erkannt (Münster(Westf))");
 ok(journey && /Flexpreis/.test(journey.tarif), "FCB-Heuristik: Tarif gefunden");
-console.log(fail === 0 ? "FCB-TESTS GRÜN" : `${fail} FCB-TEST(S) ROT`);
+// ---- Hotel-Parser: OCR-Text → Übernachtung ----
+const { parseHotelText } = await import("./src/hotel.js");
+const cityList = ["Frankfurt am Main", "München", "Münster", "Hamburg", "Stuttgart"];
+const deSample = `Ihre Buchung ist bestätigt
+Motel One Frankfurt-Römer
+Berliner Straße 55
+Anreise: Mo., 24.08.2026 ab 15:00
+Abreise: Do., 27.08.2026 bis 12:00
+Gesamtpreis: 387 EUR`;
+let hs = parseHotelText(deSample, cityList);
+ok(hs && hs.from === "2026-08-24" && hs.to === "2026-08-27", "Hotel DE: An-/Abreise über Schlüsselwörter");
+ok(hs && /Motel One/.test(hs.hotel), "Hotel DE: Name erkannt");
+ok(hs && hs.city === "Frankfurt", "Hotel DE: Stadt über Ortsliste (Wortanfang)");
+const enSample = `Marriott Hotel Munich City
+Reservation Confirmation
+Check-in: Aug 24, 2026
+Check-out: Aug 27, 2026`;
+hs = parseHotelText(enSample, cityList);
+ok(hs && hs.from === "2026-08-24" && hs.to === "2026-08-27", "Hotel EN: Datumspaar (Monatsname)");
+ok(hs && /Marriott/.test(hs.hotel), "Hotel EN: Name erkannt");
+const noise = `Rechnung Nr. 4711 vom 12.03.2026\nBetrag: 89,00 EUR`;
+ok(parseHotelText(noise, cityList) === null, "Einzeldatum ohne Paar → kein Fehlalarm");
+console.log(fail === 0 ? "HOTEL-TESTS GRÜN" : `${fail} HOTEL-TEST(S) ROT`);
 process.exit(fail ? 1 : 0);

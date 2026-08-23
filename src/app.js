@@ -1,8 +1,9 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=16";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=16";
-import { guessJourney, findStationBest } from "./fcb.js?v=16";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=17";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=17";
+import { guessJourney, findStationBest } from "./fcb.js?v=17";
+import { parseHotelText } from "./hotel.js?v=17";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -30,6 +31,34 @@ function extractRecord(payload, wantId) {
     pos += length;
   }
   return null;
+}
+
+// Tesseract lazy laden — nur wenn wirklich OCR gebraucht wird (~8 MB einmalig, danach im Cache)
+let ocrWorkerPromise = null;
+function ensureOCR() {
+  if (!ocrWorkerPromise) {
+    ocrWorkerPromise = new Promise((resolve, reject) => {
+      const sc = document.createElement("script");
+      sc.src = "vendor/tesseract/tesseract.min.js";
+      sc.onload = () => resolve();
+      sc.onerror = () => reject(new Error("OCR-Modul lädt nicht"));
+      document.head.appendChild(sc);
+    }).then(() => Tesseract.createWorker(["deu", "eng"], 1, {
+      workerPath: "vendor/tesseract/worker.min.js",
+      corePath: "vendor/tesseract/tesseract-core-simd-lstm.wasm.js",
+      langPath: "vendor/tesseract/lang",
+    }));
+  }
+  return ocrWorkerPromise;
+}
+
+let CITY_NAMES = null;
+async function cityNames() {
+  if (!CITY_NAMES) {
+    const [st, ap] = [await stations(), await airports()];
+    CITY_NAMES = [...new Set([...Object.values(st).map((v) => v[3]), ...Object.values(ap).map((v) => v[2])])];
+  }
+  return CITY_NAMES;
 }
 
 async function inflate(bytes) {
@@ -90,7 +119,26 @@ async function handleFiles(files) {
       const uicHit = results.find((r) => r.bytes && looksLikeUIC(new Uint8Array(r.bytes)))
         || results.find((r) => r.text && r.text.startsWith("#UT"));   // Fallback: Text-Repräsentation
       if (!bcbpHit && !uicHit) {
-        if (!results.length) { showError(file.name, "Kein Barcode im Bild. Tipp: Im DB Navigator den Tab „Ticket“ öffnen (nicht „Reiseplan“) und den Aztec-Code screenshotten; bei Papier: näher und gerade fotografieren."); continue; }
+        if (!results.length) {
+          // Kein Barcode → Hotelbestätigung? Texterkennung lokal versuchen
+          const info = document.createElement("div");
+          info.className = "error-card";
+          info.textContent = `${file.name}: Kein Barcode — versuche Texterkennung (beim ersten Mal lädt das OCR-Modul, ~8 MB) …`;
+          $("inboxCards").prepend(info);
+          $("inbox").hidden = false;
+          try {
+            const worker = await ensureOCR();
+            const { data } = await worker.recognize(file);
+            info.remove();
+            const stay = parseHotelText(data.text || "", await cityNames());
+            if (stay) { addStayCard(stay); continue; }
+            showError(file.name, "Weder Barcode noch Hotel-Daten erkannt. Für Tickets: Barcode screenshotten; für Hotels: Bestätigung mit An-/Abreisedatum teilen.");
+          } catch (e) {
+            info.remove();
+            showError(file.name, "Texterkennung fehlgeschlagen (" + e.message + ").");
+          }
+          continue;
+        }
         // Bekannter Irrläufer: Buchungs-Link-QR der Bahn (aus der Bestätigung) statt Ticket-Aztec
         if (results.some((r) => r.text && /bahn\.(de|com)/.test(r.text))) {
           showError(file.name, "Das ist der Buchungs-Link-QR der Bahn — nicht das Ticket. Der Ticket-Code ist der quadratische Aztec-Code mit dem „Bullauge“ in der Mitte: im DB Navigator unter Reisen → Fahrt → Tab „Ticket“.");
@@ -216,6 +264,38 @@ function addInboxCard(flight) {
     trips.push(flight);
     trips.sort((x, y) => (x.date < y.date ? 1 : -1));
     saveTrips(trips);
+    card.remove();
+    render();
+  });
+  card.querySelector(".dismiss").addEventListener("click", () => { card.remove(); render(); });
+  $("inboxCards").appendChild(card);
+  $("inbox").hidden = false;
+}
+
+function addStayCard(stay) {
+  const card = document.createElement("div");
+  card.className = "inbox-card";
+  card.innerHTML = `
+    <div class="route"><span class="plane">🛏</span><span style="font-size:18px">Übernachtung erkannt</span></div>
+    <div class="meta">Aus der Bestätigung gelesen — bitte prüfen und anpassen.</div>
+    <div class="stay-grid" style="margin-bottom:10px">
+      <input class="sh" value="${esc(stay.hotel)}" placeholder="Hotel" aria-label="Hotelname">
+      <input class="sc" value="${esc(stay.city)}" placeholder="Stadt" aria-label="Stadt">
+      <input class="sf" type="date" value="${stay.from}" aria-label="Anreise">
+      <input class="st" type="date" value="${stay.to}" aria-label="Abreise">
+    </div>
+    <div class="actions">
+      <button class="confirm">In die Sammlung</button>
+      <button class="dismiss">Verwerfen</button>
+    </div>`;
+  card.querySelector(".confirm").addEventListener("click", () => {
+    const v = (cls) => card.querySelector("." + cls).value.trim();
+    const rec = { hotel: v("sh"), city: v("sc"), from: v("sf"), to: v("st") };
+    if (!rec.from || !rec.to || rec.to <= rec.from) { alert("Bitte An- und Abreise prüfen (Abreise nach Anreise)."); return; }
+    if (!rec.hotel && !rec.city) { alert("Hotel oder Stadt angeben."); return; }
+    const stays = loadStays();
+    stays.push(rec);
+    saveStays(stays);
     card.remove();
     render();
   });
