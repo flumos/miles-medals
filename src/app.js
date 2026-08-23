@@ -1,8 +1,8 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=10";
-import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js?v=10";
-import { guessJourney } from "./fcb.js?v=10";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=11";
+import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js?v=11";
+import { guessJourney } from "./fcb.js?v=11";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -261,7 +261,12 @@ async function renderMap(trips) {
     }
     L.marker(v.pos, {
       icon: L.divIcon({ className: "mm-citylabel", iconAnchor: [-10, 6],
-        html: `${esc(code.length > 12 ? code.slice(0, 11) + "…" : code)}${v.count > 1 ? " ×" + v.count : ""}` }),
+        html: (() => {
+          let lbl = code;
+          if (lbl.length > 12 && lbl.includes(" ")) lbl = lbl.split(" ")[0];   // „Frankfurt am Main" → „Frankfurt"
+          if (lbl.length > 12) lbl = lbl.slice(0, 11) + "…";
+          return `${esc(lbl)}${v.count > 1 ? " ×" + v.count : ""}`;
+        })() }),
       interactive: false, keyboard: false,
     }).addTo(mapLayer);
   }
