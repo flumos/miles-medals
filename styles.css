@@ -1,0 +1,144 @@
+/* Miles & Medals — Ranger Design-System v0.2 (Webapp-Testlabor)
+   Tokens siehe Vault: 02 Projekte/Miles & Medals/Miles & Medals – Design.md */
+:root {
+  --sunset: #E8703A;
+  --coral: #F2997B;
+  --gold: #E9B44C;
+  --pine: #2A4A44;
+  --teal: #3E7C7B;
+  --paper: #F2E8D5;
+  --card: #FAF4E7;
+  --ink: #2B2118;
+  --muted: #7A6D5C;
+  --line: #DDD1BA;
+  --rust: #A8481A;
+  --accent-text: var(--rust);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1E1712;
+    --card: #2A2018;
+    --ink: #F0E7D8;
+    --muted: #A89880;
+    --line: #443729;
+    --accent-text: var(--sunset);
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Public Sans", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+}
+main, .hero { max-width: 640px; margin: 0 auto; padding: 0 18px; }
+
+h1, h2, .eyebrow, .dz-text strong {
+  font-family: "Staatliches", "Arial Narrow", sans-serif;
+  font-weight: 400;
+}
+.hero { text-align: center; padding-top: 40px; }
+.eyebrow { font-size: 14px; letter-spacing: 0.2em; color: var(--accent-text); }
+h1 { font-size: clamp(34px, 8vw, 48px); letter-spacing: 0.04em; line-height: 1.05; margin: 6px 0 10px; }
+.hero p { color: var(--muted); margin: 0 auto 24px; max-width: 34em; }
+.hero p strong { color: var(--ink); }
+h2 { font-size: 24px; letter-spacing: 0.08em; margin: 30px 0 12px; }
+
+.dropzone {
+  border: 2.5px dashed var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  padding: 34px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.dropzone:hover, .dropzone:focus-visible, .dropzone.drag { border-color: var(--sunset); outline: none; }
+.dropzone.drag { transform: scale(1.01); }
+.dz-icon { font-size: 34px; margin-bottom: 6px; }
+.dz-text { color: var(--muted); }
+.dz-text strong { color: var(--ink); font-size: 19px; letter-spacing: 0.05em; }
+.dropzone.busy { opacity: 0.6; pointer-events: none; }
+
+.inbox-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+}
+.inbox-card .route {
+  font-family: "Staatliches", sans-serif;
+  font-size: 30px;
+  letter-spacing: 0.04em;
+  display: flex; align-items: baseline; gap: 12px;
+}
+.inbox-card .route .plane { color: var(--sunset); font-size: 18px; }
+.inbox-card .meta { font-size: 13.5px; color: var(--muted); margin: 4px 0 12px; }
+.inbox-card .meta b { color: var(--ink); font-weight: 600; }
+.inbox-card .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.inbox-card input[type="date"] {
+  font: inherit; font-size: 14px; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--paper); color: var(--ink);
+}
+button.confirm {
+  font-family: "Staatliches", sans-serif;
+  font-size: 17px; letter-spacing: 0.08em;
+  background: var(--sunset); color: #2B2118;
+  border: none; border-radius: 10px;
+  padding: 9px 20px; cursor: pointer;
+}
+button.confirm:hover { filter: brightness(1.05); }
+button.dismiss {
+  font: inherit; font-size: 13.5px; color: var(--muted);
+  background: none; border: none; cursor: pointer; text-decoration: underline;
+}
+.error-card {
+  background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--rust);
+  border-radius: 10px; padding: 12px 16px; margin-bottom: 12px;
+  font-size: 14px; color: var(--muted);
+}
+
+.year {
+  background: var(--pine);
+  border-radius: 16px;
+  padding: 22px 22px 18px;
+  margin-top: 30px;
+  color: #F2E8D5;
+}
+.year .eyebrow { color: #E9B44C; }
+.year-km { font-family: "Staatliches", sans-serif; font-size: clamp(38px, 9vw, 52px); line-height: 1.05; font-variant-numeric: tabular-nums; }
+.year-km small { font-size: 0.38em; color: #BFD0C6; letter-spacing: 0.08em; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+@media (max-width: 480px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+.tile { background: rgba(242, 232, 213, 0.09); border-radius: 10px; padding: 10px 10px 8px; }
+.tile .n { font-family: "Staatliches", sans-serif; font-size: 24px; font-variant-numeric: tabular-nums; }
+.tile .l { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #BFD0C6; }
+
+.badges { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; }
+.badge { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.badge svg { filter: drop-shadow(0 2px 5px rgba(30, 20, 10, 0.25)); }
+.badge .cap { font-size: 12px; color: var(--muted); }
+
+.trip {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 8px;
+  font-size: 14.5px;
+}
+.trip .r { font-weight: 600; }
+.trip .d { color: var(--muted); font-size: 13px; }
+.trip .km { font-variant-numeric: tabular-nums; color: var(--accent-text); font-weight: 600; align-self: center; }
+
+footer {
+  max-width: 640px; margin: 40px auto 0; padding: 18px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px; color: var(--muted); text-align: center;
+}
+footer a { color: var(--accent-text); }

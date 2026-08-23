@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Miles &amp; Medals — Testlabor</title>
+<meta name="description" content="Boardingpass rein, Reisejahr raus. Läuft komplett im Browser — nichts verlässt dein Gerät.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Staatliches&family=Public+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="eyebrow">Miles &amp; Medals · Testlabor</div>
+  <h1>Dein Reisejahr beginnt hier</h1>
+  <p>Boardingpass-Foto, Screenshot oder Wallet-Pass hier ablegen — der Barcode wird direkt im Browser gelesen. <strong>Nichts verlässt dein Gerät.</strong></p>
+</header>
+
+<main>
+  <section id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Boardingpass hochladen">
+    <div class="dz-inner">
+      <div class="dz-icon" aria-hidden="true">🎫</div>
+      <div class="dz-text"><strong>Boardingpass hierher ziehen</strong><br>oder tippen zum Auswählen</div>
+      <input type="file" id="fileInput" accept="image/*" multiple hidden>
+    </div>
+  </section>
+
+  <section id="inbox" class="inbox" hidden>
+    <h2>Inbox</h2>
+    <div id="inboxCards"></div>
+  </section>
+
+  <section id="year" class="year" hidden>
+    <div class="year-head">
+      <div class="eyebrow">Dein Reisejahr</div>
+      <div class="year-km"><span id="statKm">0</span><small> km geflogen</small></div>
+    </div>
+    <div class="tiles">
+      <div class="tile"><div class="n" id="statFlights">0</div><div class="l">Flüge</div></div>
+      <div class="tile"><div class="n" id="statCities">0</div><div class="l">Städte</div></div>
+      <div class="tile"><div class="n" id="statCountries">0</div><div class="l">Länder</div></div>
+      <div class="tile"><div class="n" id="statEarth">0×</div><div class="l">um die Erde</div></div>
+    </div>
+  </section>
+
+  <section id="collection" class="collection" hidden>
+    <h2>Sammlung</h2>
+    <div id="badges" class="badges"></div>
+  </section>
+
+  <section id="log" class="log" hidden>
+    <h2>Logbuch</h2>
+    <div id="tripList"></div>
+  </section>
+</main>
+
+<footer>
+  <span>Testlabor · lokal &amp; privat · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
+</footer>
+
+<script src="vendor/zxing-full.iife.js"></script>
+<script type="module" src="src/app.js"></script>
+</body>
+</html>
