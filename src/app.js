@@ -99,33 +99,6 @@ function addInboxCard(flight) {
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-// ---------- Ranger-Badge (SVG, deterministisch pro Stadt) ----------
-function cityBadge(city, count) {
-  const h = [...city].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
-  const skies = ["#F2997B", "#E9B44C", "#F2E8D5"];
-  const sky = skies[h % skies.length];
-  const m1 = 62 + (h % 20), m2 = 55 + ((h >> 3) % 22);   // Berg-Höhen variieren
-  const sunX = 55 + ((h >> 5) % 30);
-  // Lange Ortsnamen aufs erste Wort kürzen („Frankfurt am Main" → „Frankfurt")
-  let label = city.length > 11 && city.includes(" ") ? city.split(" ")[0] : city;
-  if (label.length > 11) label = label.slice(0, 10) + "…";
-  return `
-  <svg width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="${esc(city)}">
-    <circle cx="64" cy="64" r="62" fill="#2B2118"/>
-    <circle cx="64" cy="64" r="56" fill="#F2E8D5"/>
-    <circle cx="64" cy="56" r="36" fill="${sky}"/>
-    <circle cx="${44 + ((h >> 5) % 24)}" cy="44" r="11" fill="${sky === "#E9B44C" ? "#E8703A" : "#E9B44C"}"/>
-    <polygon points="32,70 ${32 + 20},${70 - (m1 >> 1) - 8} 72,70" fill="#3E7C7B"/>
-    <polygon points="56,70 ${56 + 22},${70 - (m2 >> 1) - 10} 98,70" fill="#2A4A44"/>
-    <rect x="30" y="68" width="68" height="4" fill="#2B2118" opacity="0.9"/>
-    <circle cx="64" cy="56" r="38" fill="none" stroke="#2B2118" stroke-width="2"/>
-    <text x="64" y="105" text-anchor="middle" font-family="Staatliches, Arial Narrow, sans-serif"
-          font-size="12" letter-spacing="1" fill="#2B2118">${esc(label.toUpperCase())}</text>
-    ${count > 1 ? `<text x="64" y="117" text-anchor="middle" font-family="Staatliches, Arial Narrow, sans-serif"
-          font-size="9.5" letter-spacing="0.8" fill="#A8481A">×${count}</text>` : ""}
-  </svg>`;
-}
-
 // ---------- Karte (Instrument-Register, Leaflet + CARTO dark wie Passjäger) ----------
 let map = null, mapLayer = null;
 function ensureMap() {
@@ -238,10 +211,23 @@ function render() {
 
   renderMap(trips);
 
-  $("badges").innerHTML = [...cities.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([city, count]) => `<div class="badge">${cityBadge(city, count)}</div>`)
-    .join("");
+  // Städte-Liste (Lebens-Sicht, nüchtern): Stadt · Land · Besuche · letzte Reise
+  const cityStats = new Map();
+  for (const t of trips) {
+    const c = cityStats.get(t.toCity) || { country: t.toCountry, count: 0, km: 0, last: "" };
+    c.count++; c.km += t.km || 0;
+    if (t.date > c.last) c.last = t.date;
+    cityStats.set(t.toCity, c);
+  }
+  $("cityList").innerHTML = [...cityStats.entries()]
+    .sort((x, y) => y[1].count - x[1].count || (y[1].last > x[1].last ? 1 : -1))
+    .map(([city, c]) => `
+      <div class="city-row">
+        <span class="c-name">${esc(city)}${c.country ? ` <span class="c-cc">${esc(c.country)}</span>` : ""}</span>
+        <span class="c-count">${c.count}×</span>
+        <span class="c-km">${c.km.toLocaleString("de-DE")} km</span>
+        <span class="c-last">${c.last}</span>
+      </div>`).join("");
 
   $("tripList").innerHTML = trips.map((t) => `
     <div class="trip">

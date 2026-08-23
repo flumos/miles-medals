@@ -163,10 +163,20 @@ button.dismiss {
 .map-legend .dot-flug { background: #E8703A; }
 .map-legend .hint { opacity: 0.75; }
 
-.badges { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; }
-.badge { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.badge svg { filter: drop-shadow(0 2px 5px rgba(30, 20, 10, 0.25)); }
-.badge .cap { font-size: 12px; color: var(--muted); }
+.city-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 12px; align-items: baseline;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 6px;
+  font-size: 14.5px; font-variant-numeric: tabular-nums;
+}
+.city-row .c-name { font-weight: 600; }
+.city-row .c-cc { font-weight: 400; font-size: 12px; color: var(--muted); letter-spacing: 0.06em; }
+.city-row .c-count { color: var(--accent-text); font-weight: 600; }
+.city-row .c-km { color: var(--muted); font-size: 13px; }
+.city-row .c-last { color: var(--muted); font-size: 12.5px; }
+@media (max-width: 480px) { .city-row .c-last { display: none; } }
 
 .trip {
   display: grid;
