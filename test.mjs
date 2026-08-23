@@ -40,5 +40,42 @@ ok(decoded.length === 1 && decoded[0].text === oneLeg, "PDF417 Round-Trip: schre
 const rt = parseBCBP(decoded[0].text);
 ok(rt && rt.legs[0].to === "PEK", "Dekodierter Barcode parst korrekt");
 
-console.log(fail === 0 ? "\nALLE TESTS GRÜN" : `\n${fail} TEST(S) ROT`);
+// ---- UIC 918-3 (Bahn): synthetisches Ticket bauen → Parser prüfen ----
+const { looksLikeUIC, extractCompressed, parseUICPayload, findStation, normStation } = await import("./src/uic.js");
+const zlib = await import("node:zlib");
+
+function rec(id, version, data) {
+  const body = id + version + String(12 + data.length).padStart(4, "0") + data;
+  return body;
+}
+const uHead = rec("U_HEAD", "01", "0080" + "ABC123DEF4560000000 ".padEnd(20) + "231120261435" + "0" + "DE");
+const blTrips = "00" + "1" + "23112026" + "23112026" + "12345678";  // vereinfachter Trip-Vorspann
+const sBlocks = "S001" + "0012" + "Flexpreis Hi" + "S015" + "0011" + "Hamburg Hbf" + "S016" + "0018" + "Frankfurt(Main)Hbf" + "S031" + "0010" + "23.11.2026";
+const uBl = rec("0080BL", "03", blTrips + sBlocks);
+const payload = Buffer.from(uHead + uBl, "latin1");
+const compressed = zlib.deflateSync(payload);
+const header = Buffer.concat([
+  Buffer.from("#UT01" + "0080" + "00007", "latin1"),
+  Buffer.alloc(50, 0x30),                                   // Fake-Signatur
+  Buffer.from(String(compressed.length).padStart(4, "0"), "latin1"),
+  compressed,
+]);
+ok(looksLikeUIC(header), "UIC-Header erkannt");
+const ext = extractCompressed(header);
+ok(ext && ext.declaredLength === compressed.length, "zlib-Payload gefunden (Längenfeld stimmt)");
+const parsed = parseUICPayload(new Uint8Array(zlib.inflateSync(ext.compressed)));
+ok(parsed && parsed.from === "Hamburg Hbf" && parsed.to === "Frankfurt(Main)Hbf", "Start/Ziel aus 0080BL");
+ok(parsed && parsed.travelDate === "2026-11-23", "Reisedatum aus S031");
+
+const stations = JSON.parse(readFileSync("data/stations.json", "utf-8"));
+const a = findStation(stations, "Hamburg Hbf"), b = findStation(stations, "Frankfurt(Main)Hbf");
+ok(a && b, "Bahnhöfe im Stations-Lookup gefunden");
+const railKm = Math.round(greatCircleKm(a, b) * 1.25);
+ok(railKm > 450 && railKm < 560, `Bahn-km HAM–FRA ≈ ${railKm} (Näherung, real ~500)`);
+
+// U_FLEX (neues FCB-Format) wird sauber abgelehnt
+const flexPayload = Buffer.from(rec("U_FLEX", "13", "xxxx"), "latin1");
+ok(parseUICPayload(new Uint8Array(flexPayload))?.unsupported === "FCB", "U_FLEX → ehrliche Ablehnung");
+
+console.log(fail === 0 ? "\nALLE TESTS GRÜN (inkl. UIC)" : `\n${fail} TEST(S) ROT`);
 process.exit(fail ? 1 : 0);

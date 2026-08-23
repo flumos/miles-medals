@@ -1,14 +1,25 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
 import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js";
+import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
 
-let AIRPORTS = null;
+let AIRPORTS = null, STATIONS = null;
 async function airports() {
   if (!AIRPORTS) AIRPORTS = await (await fetch("data/airports.json")).json();
   return AIRPORTS;
+}
+async function stations() {
+  if (!STATIONS) STATIONS = await (await fetch("data/stations.json")).json();
+  return STATIONS;
+}
+
+async function inflate(bytes) {
+  const ds = new DecompressionStream("deflate");
+  const stream = new Blob([bytes]).stream().pipeThrough(ds);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 // ---------- Storage ----------
@@ -33,20 +44,48 @@ async function handleFiles(files) {
         formats: ["PDF417", "Aztec", "QRCode", "DataMatrix"],
         tryHarder: true,
       });
-      const hit = results.find((r) => r.text && r.text[0] === "M" && parseBCBP(r.text));
-      if (!hit) { showError(file.name, results.length ? "Barcode gefunden, aber kein Boardingpass-Format (BCBP)." : "Kein Barcode erkennbar — näher/gerader fotografieren hilft."); continue; }
-      const pass = parseBCBP(hit.text);
-      const db = await airports();
-      for (const leg of pass.legs) {
-        const a = db[leg.from], b = db[leg.to];
+      const bcbpHit = results.find((r) => r.text && r.text[0] === "M" && parseBCBP(r.text));
+      const uicHit = results.find((r) => r.bytes && looksLikeUIC(new Uint8Array(r.bytes)));
+      if (!bcbpHit && !uicHit) { showError(file.name, results.length ? "Barcode gefunden, aber weder Boardingpass (BCBP) noch DB-Ticket (UIC)." : "Kein Barcode erkennbar — näher/gerader fotografieren hilft."); continue; }
+
+      if (bcbpHit) {
+        const pass = parseBCBP(bcbpHit.text);
+        const db = await airports();
+        for (const leg of pass.legs) {
+          const a = db[leg.from], b = db[leg.to];
+          addInboxCard({
+            mode: "flight",
+            from: leg.from, to: leg.to,
+            fromCity: a ? a[2] : leg.from, toCity: b ? b[2] : leg.to,
+            toCountry: b ? b[3] : null,
+            fromPos: a ? [a[0], a[1]] : null, toPos: b ? [b[0], b[1]] : null,
+            km: a && b ? greatCircleKm(a, b) : null,
+            carrier: leg.carrier, flightNo: leg.flightNo, seat: leg.seat,
+            date: isoDate(julianToDate(leg.julianDay) ?? fileDate(file)),
+            name: pass.name, barcodeFormat: bcbpHit.format,
+          });
+        }
+      }
+
+      if (uicHit) {
+        const bytes = new Uint8Array(uicHit.bytes);
+        const ext = extractCompressed(bytes);
+        if (!ext) { showError(file.name, "DB-Ticket erkannt, aber die Daten ließen sich nicht auspacken."); continue; }
+        const ticket = parseUICPayload(await inflate(ext.compressed));
+        if (!ticket) { showError(file.name, "DB-Ticket erkannt, aber das Datenformat ist unbekannt."); continue; }
+        if (ticket.unsupported === "FCB") { showError(file.name, "Neues DB-Ticketformat (FCB/U_FLEX) — steht auf der Liste, kann das Labor noch nicht."); continue; }
+        if (!ticket.from || !ticket.to) { showError(file.name, `DB-Ticket gelesen (${(ticket.records || []).join(", ")}), aber ohne Start/Ziel-Felder — vermutlich Zeitkarte oder Sonderformat.`); continue; }
+        const st = await stations();
+        const a = findStation(st, ticket.from), b = findStation(st, ticket.to);
         addInboxCard({
-          from: leg.from, to: leg.to,
-          fromCity: a ? a[2] : leg.from, toCity: b ? b[2] : leg.to,
-          toCountry: b ? b[3] : null,
-          km: a && b ? greatCircleKm(a, b) : null,
-          carrier: leg.carrier, flightNo: leg.flightNo, seat: leg.seat,
-          date: isoDate(julianToDate(leg.julianDay) ?? fileDate(file)),
-          name: pass.name, barcodeFormat: hit.format,
+          mode: "train",
+          from: ticket.from, to: ticket.to,
+          fromCity: a ? a[3] : ticket.from, toCity: b ? b[3] : ticket.to,
+          toCountry: (a && b) ? "DE" : null,
+          fromPos: a ? [a[0], a[1]] : null, toPos: b ? [b[0], b[1]] : null,
+          km: a && b ? Math.round(greatCircleKm(a, b) * RAIL_DETOUR) : null,
+          carrier: "DB", flightNo: ticket.tarif || "", seat: "",
+          date: ticket.travelDate || ticket.issued || isoDate(fileDate(file)),
         });
       }
     } catch (e) {
@@ -74,10 +113,10 @@ function addInboxCard(flight) {
   const card = document.createElement("div");
   card.className = "inbox-card";
   card.innerHTML = `
-    <div class="route"><span>${flight.from}</span><span class="plane">✈</span><span>${flight.to}</span></div>
+    <div class="route"><span>${esc(flight.from)}</span><span class="plane">${flight.mode === "train" ? "🚆" : "✈"}</span><span>${esc(flight.to)}</span></div>
     <div class="meta"><b>${esc(flight.fromCity)} → ${esc(flight.toCity)}</b>
       · ${flight.carrier} ${flight.flightNo}${flight.seat ? " · Sitz " + flight.seat : ""}
-      ${flight.km ? " · <b>" + flight.km.toLocaleString("de-DE") + " km</b>" : ""}</div>
+      ${flight.km ? " · <b>" + (flight.mode === "train" ? "≈ " : "") + flight.km.toLocaleString("de-DE") + " km</b>" : ""}</div>
     <div class="actions">
       <input type="date" value="${flight.date}" aria-label="Flugdatum">
       <button class="confirm">In die Sammlung</button>
@@ -141,32 +180,34 @@ async function renderMap(trips) {
   const db = await airports();
   ensureMap();
   mapLayer.clearLayers();
-  const visits = new Map();   // IATA → {pos, city, count, isOrigin}
-  const bump = (code, isDest) => {
-    const ap = db[code]; if (!ap) return;
-    const v = visits.get(code) || { pos: [ap[0], ap[1]], city: ap[2], count: 0 };
+  const visits = new Map();   // Code/Name → {pos, count, color}
+  const bumpPos = (code, pos, isDest, color) => {
+    const v = visits.get(code) || { pos, count: 0, color };
     if (isDest) v.count++;
     visits.set(code, v);
   };
   for (const t of trips) {
-    bump(t.from, false); bump(t.to, true);
-    const a = db[t.from], b = db[t.to];
-    if (a && b) L.polyline(greatCircleArc([a[0], a[1]], [b[0], b[1]]), {
-      color: "#E8703A", weight: 1, opacity: 0.7, interactive: false,
+    const pa = t.fromPos || (db[t.from] ? [db[t.from][0], db[t.from][1]] : null);
+    const pb = t.toPos || (db[t.to] ? [db[t.to][0], db[t.to][1]] : null);
+    const color = t.mode === "train" ? "#5E9A94" : "#E8703A";
+    if (pa) bumpPos(t.from, pa, false, color);
+    if (pb) bumpPos(t.to, pb, true, color);
+    if (pa && pb) L.polyline(greatCircleArc(pa, pb), {
+      color, weight: 1, opacity: 0.7, interactive: false,
     }).addTo(mapLayer);
   }
   const bounds = [];
   for (const [code, v] of visits) {
     bounds.push(v.pos);
-    L.circleMarker(v.pos, { radius: 3.5, color: "#E8703A", fillColor: "#E8703A", fillOpacity: 1, weight: 0 }).addTo(mapLayer);
+    L.circleMarker(v.pos, { radius: 3.5, color: v.color, fillColor: v.color, fillOpacity: 1, weight: 0 }).addTo(mapLayer);
     // Node-Ringe: einer pro Besuch (gedeckelt), Radius wächst
     for (let i = 1; i <= Math.min(v.count, 4); i++) {
-      L.circleMarker(v.pos, { radius: 5 + i * 3.5, color: "#E8703A", fill: false, weight: 0.8,
+      L.circleMarker(v.pos, { radius: 5 + i * 3.5, color: v.color, fill: false, weight: 0.8,
         opacity: Math.max(0.15, 0.65 - i * 0.13), interactive: false }).addTo(mapLayer);
     }
     L.marker(v.pos, {
       icon: L.divIcon({ className: "mm-citylabel", iconAnchor: [-10, 6],
-        html: `${code}${v.count > 1 ? " ×" + v.count : ""}` }),
+        html: `${esc(code.length > 12 ? code.slice(0, 11) + "…" : code)}${v.count > 1 ? " ×" + v.count : ""}` }),
       interactive: false, keyboard: false,
     }).addTo(mapLayer);
   }
@@ -196,15 +237,16 @@ function render() {
   const countries = new Set(yTrips.map((t) => t.toCountry).filter(Boolean));
 
   $("statKm").textContent = km.toLocaleString("de-DE");
-  $("statFlights").textContent = yTrips.length;
+  const yFlights = yTrips.filter((t) => t.mode !== "train");
+  $("statFlights").textContent = yFlights.length;
   $("statCities").textContent = cities.size;
   $("statCountries").textContent = countries.size;
   $("statEarth").textContent = (km / 40075).toLocaleString("de-DE", { maximumFractionDigits: 1 }) + "×";
 
   // Status-Fortschritt: Segmente + Elite-Nächte
-  $("segVal").textContent = yTrips.length;
+  $("segVal").textContent = yFlights.length;
   $("segGoal").textContent = SEG_GOAL;
-  $("segBar").style.width = Math.min(100, (yTrips.length / SEG_GOAL) * 100) + "%";
+  $("segBar").style.width = Math.min(100, (yFlights.length / SEG_GOAL) * 100) + "%";
   $("segMark").style.left = "100%";
   $("nightVal").textContent = yNights;
   $("nightBar").style.width = Math.min(100, (yNights / 50) * 100) + "%";
@@ -231,7 +273,7 @@ function render() {
 
   $("tripList").innerHTML = trips.map((t) => `
     <div class="trip">
-      <span class="r">${t.from} → ${t.to} <span style="font-weight:400">· ${esc(t.toCity)}</span></span>
+      <span class="r">${esc(t.from)} → ${esc(t.to)}${t.mode === "train" ? " 🚆" : ""} <span style="font-weight:400">· ${esc(t.toCity)}</span></span>
       <span class="km">${t.km ? t.km.toLocaleString("de-DE") + " km" : "—"}</span>
       <span class="d">${t.date} · ${t.carrier} ${t.flightNo}</span>
     </div>`).join("");
