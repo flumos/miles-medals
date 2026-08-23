@@ -6,6 +6,7 @@
 <title>Miles &amp; Medals — Testlabor</title>
 <meta name="description" content="Boardingpass rein, Reisejahr raus. Läuft komplett im Browser — nichts verlässt dein Gerät.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Staatliches&family=Public+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -43,6 +44,15 @@
     </div>
   </section>
 
+  <section id="mapSection" class="map-section" hidden>
+    <h2>Karte</h2>
+    <div id="map" aria-label="Weltkarte deiner Reisen"></div>
+    <div class="map-legend">
+      <span><i class="dot dot-flug"></i>FLUG</span>
+      <span class="hint">NODE-RING = BESUCHE</span>
+    </div>
+  </section>
+
   <section id="collection" class="collection" hidden>
     <h2>Sammlung</h2>
     <div id="badges" class="badges"></div>
@@ -58,6 +68,7 @@
   <span>Testlabor · lokal &amp; privat · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
 </footer>
 
+<script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/zxing-full.iife.js"></script>
 <script type="module" src="src/app.js"></script>
 </body>
