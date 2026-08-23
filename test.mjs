@@ -77,5 +77,28 @@ ok(railKm > 450 && railKm < 560, `Bahn-km HAM–FRA ≈ ${railKm} (Näherung, re
 const flexPayload = Buffer.from(rec("U_FLEX", "13", "xxxx"), "latin1");
 ok(parseUICPayload(new Uint8Array(flexPayload))?.unsupported === "FCB", "U_FLEX → ehrliche Ablehnung");
 
-console.log(fail === 0 ? "\nALLE TESTS GRÜN (inkl. UIC)" : `\n${fail} TEST(S) ROT`);
+// ---- FCB-Heuristik: bit-verschobene Stations-Strings erkennen (anonymisiertes Muster) ----
+const { guessJourney } = await import("./src/fcb.js");
+function shiftInto(text, shift) {
+  const src = Buffer.from("\x00\x00" + text + "\x00\x00", "utf-8");   // Rauschen drumherum
+  const bits = [];
+  for (const byte of src) for (let b = 7; b >= 0; b--) bits.push((byte >> b) & 1);
+  for (let i = 0; i < shift; i++) bits.unshift(1);                     // Bit-Versatz wie im UPER-Strom
+  while (bits.length % 8) bits.push(0);
+  const out = Buffer.alloc(bits.length / 8);
+  bits.forEach((bit, i) => { out[i >> 3] |= bit << (7 - (i % 8)); });
+  return out;
+}
+const fcbFake = Buffer.concat([
+  Buffer.from([0x62, 0xb2, 0x00, 0x86]),                               // UPER-artiger Vorspann
+  shiftInto("Hamburg+City", 3),
+  Buffer.from([0x81, 0x05]),
+  shiftInto("Münster(Westf)+City&Via: <1080>VAI*(MZ/MA*F)", 3),
+  shiftInto("Flexpreis", 6),
+]);
+const journey = guessJourney(new Uint8Array(fcbFake), stations);
+ok(journey && journey.from[2] === "Hamburg Hbf", "FCB-Heuristik: Start erkannt (Hamburg+City → Hamburg Hbf)");
+ok(journey && journey.to[2].startsWith("Münster"), "FCB-Heuristik: Ziel erkannt (Münster(Westf))");
+ok(journey && /Flexpreis/.test(journey.tarif), "FCB-Heuristik: Tarif gefunden");
+console.log(fail === 0 ? "FCB-TESTS GRÜN" : `${fail} FCB-TEST(S) ROT`);
 process.exit(fail ? 1 : 0);

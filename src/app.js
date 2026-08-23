@@ -1,7 +1,8 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=7";
-import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js?v=7";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=8";
+import { looksLikeUIC, extractCompressed, parseUICPayload, findStation, RAIL_DETOUR } from "./uic.js?v=8";
+import { guessJourney } from "./fcb.js?v=8";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -14,6 +15,21 @@ async function airports() {
 async function stations() {
   if (!STATIONS) STATIONS = await (await fetch("data/stations.json")).json();
   return STATIONS;
+}
+
+function extractRecord(payload, wantId) {
+  const td2 = new TextDecoder("latin1");
+  const str = td2.decode(payload);
+  let pos = 0;
+  while (pos + 12 <= str.length) {
+    const id = str.slice(pos, pos + 6);
+    if (!/^[A-Z0-9_]{6}$/.test(id)) break;
+    const length = parseInt(str.slice(pos + 8, pos + 12), 10);
+    if (!Number.isFinite(length) || length < 12) break;
+    if (id === wantId) return payload.slice(pos + 12, pos + length);
+    pos += length;
+  }
+  return null;
 }
 
 async function inflate(bytes) {
@@ -93,7 +109,25 @@ async function handleFiles(files) {
         if (!ext) { showError(file.name, "DB-Ticket erkannt, aber die Daten ließen sich nicht auspacken."); continue; }
         const ticket = parseUICPayload(await inflate(ext.compressed));
         if (!ticket) { showError(file.name, "DB-Ticket erkannt, aber das Datenformat ist unbekannt."); continue; }
-        if (ticket.unsupported === "FCB") { showError(file.name, "Neues DB-Ticketformat (FCB/U_FLEX) — steht auf der Liste, kann das Labor noch nicht."); continue; }
+        if (ticket.unsupported === "FCB") {
+          // Heuristischer FCB-Leser: U_FLEX-Record erneut aus der Payload ziehen
+          const payload = await inflate(ext.compressed);
+          const flex = extractRecord(payload, "U_FLEX");
+          const st = await stations();
+          const j = flex ? guessJourney(flex, st) : null;
+          if (!j) { showError(file.name, "Neues DB-Ticketformat (FCB) — Start/Ziel konnten heuristisch nicht erkannt werden. Das Bild hilft mir beim Parser-Ausbau."); continue; }
+          addInboxCard({
+            mode: "train",
+            from: j.from[2], to: j.to[2],
+            fromCity: j.from[3], toCity: j.to[3],
+            toCountry: "DE",
+            fromPos: [j.from[0], j.from[1]], toPos: [j.to[0], j.to[1]],
+            km: Math.round(greatCircleKm(j.from, j.to) * RAIL_DETOUR),
+            carrier: "DB", flightNo: j.tarif || "FCB", seat: "",
+            date: isoDate(fileDate(file)) || new Date().toISOString().slice(0, 10),
+          });
+          continue;
+        }
         if (!ticket.from || !ticket.to) { showError(file.name, `DB-Ticket gelesen (${(ticket.records || []).join(", ")}), aber ohne Start/Ziel-Felder — vermutlich Zeitkarte oder Sonderformat.`); continue; }
         const st = await stations();
         const a = findStation(st, ticket.from), b = findStation(st, ticket.to);
