@@ -1,9 +1,9 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=17";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=17";
-import { guessJourney, findStationBest } from "./fcb.js?v=17";
-import { parseHotelText } from "./hotel.js?v=17";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=18";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=18";
+import { guessJourney, findStationBest } from "./fcb.js?v=18";
+import { parseHotelText } from "./hotel.js?v=18";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -421,6 +421,12 @@ function render() {
   $("statCities").textContent = cities.size;
   $("statCountries").textContent = countries.size;
   $("statEarth").textContent = (km / 40075).toLocaleString("de-DE", { maximumFractionDigits: 1 }) + "×";
+  const travelDays = new Set([
+    ...yTrips.map((t) => t.date),
+    ...nights.filter(inYear),
+    ...checkins.filter((c) => inYear(c.date)).map((c) => c.date),
+  ]);
+  $("statDays").textContent = travelDays.size;
 
   // Modal-Split: km je Verkehrsmittel
   const modes = [
@@ -518,8 +524,8 @@ function renderDays(trips, stays, checkins) {
     const parts = [];
     for (const t of legs) parts.push(`<span class="d-leg">${t.mode === "train" ? "🚆" : "✈"} ${esc(t.from)} → ${esc(t.to)}${t.km ? ` <em>${(t.mode === "train" ? "≈ " : "") + t.km.toLocaleString("de-DE")} km</em>` : ""}<button class="del" data-k="trip" data-i="${t._i}" title="Eintrag löschen">✕</button></span>`);
     if (night && night.from === d) parts.push(`<span class="d-leg">🛏 ${esc(night.hotel || "Hotel")}${night.city ? ` <em>${esc(night.city)}</em>` : ""}<button class="del" data-k="stay" data-i="${night._i}" title="Übernachtung löschen">✕</button></span>`);
-    for (const c of (checks || [])) parts.push(`<span class="d-leg">📍 ${esc(c.city)}<button class="del" data-k="checkin" data-i="${c._i}" title="Check-in löschen">✕</button></span>`);
-    const loc = night ? (night.city || night.hotel) : (legs.length ? legs[legs.length - 1].toCity : (checks && checks.length ? checks[0].city : ""));
+    for (const c of (checks || [])) parts.push(`<span class="d-leg">📍 ${c.label ? esc(c.label) + " <em>· " + esc(c.city) + "</em>" : esc(c.city)}<button class="del edit" data-k="checkin-edit" data-i="${c._i}" title="Label ändern">✎</button><button class="del" data-k="checkin" data-i="${c._i}" title="Check-in löschen">✕</button></span>`);
+    const loc = night ? (night.city || night.hotel) : (legs.length ? legs[legs.length - 1].toCity : (checks && checks.length ? (checks[0].label || checks[0].city) : ""));
     const main = parts.length || loc
       ? `<span class="d-main">${loc ? `<b>${esc(loc)}</b>` : ""}${parts.join("")}</span>`
       : `<span class="d-main d-home">·</span>`;
@@ -561,6 +567,13 @@ $("tripList").addEventListener("click", (e) => {
   const btn = e.target.closest(".del");
   if (!btn) return;
   const { k, i } = btn.dataset;
+  if (k === "checkin-edit") {
+    const list = loadCheckins();
+    const c = list[+i];
+    const label = prompt("Label für diesen Check-in (z. B. Kunde, Restaurant, Ausflugsziel):", c.label || "");
+    if (label !== null) { c.label = label.trim(); saveCheckins(list); render(); }
+    return;
+  }
   const stores = { trip: [loadTrips, saveTrips], stay: [loadStays, saveStays], checkin: [loadCheckins, saveCheckins] };
   const labels = { trip: "Etappe", stay: "Übernachtung", checkin: "Check-in" };
   if (!confirm(`${labels[k]} wirklich löschen?`)) return;
