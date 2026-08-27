@@ -19,6 +19,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }   /* display-Regeln (grid/flex) dürfen hidden nie überstimmen */
 body {
   margin: 0;
   background: var(--bg);
@@ -128,6 +129,7 @@ h2 {
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
 }
 .leaflet-container { font-family: "Public Sans", sans-serif; background: var(--mapbg); }
+.leaflet-top, .leaflet-bottom { z-index: 700; }   /* Karten-Controls bleiben unter der Tab-Bar (z-index 900) */
 .leaflet-bar a { background: var(--card); color: var(--ink); border-bottom: 1px solid var(--line); }
 .leaflet-bar a:hover { background: var(--card2); color: var(--ink); }
 .mm-citylabel {
