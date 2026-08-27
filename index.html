@@ -7,7 +7,7 @@
 <meta name="description" content="Boardingpass rein, Reisejahr raus. Läuft komplett im Browser — nichts verlässt dein Gerät.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=18">
+<link rel="stylesheet" href="styles.css?v=19">
 </head>
 <body>
 
@@ -28,7 +28,7 @@
       <div class="tile"><div class="n" id="statFlights">0</div><div class="l">Flüge</div></div>
       <div class="tile"><div class="n" id="statCities">0</div><div class="l">Städte</div></div>
       <div class="tile"><div class="n" id="statCountries">0</div><div class="l">Länder</div></div>
-      <div class="tile"><div class="n" id="statDays">0</div><div class="l">Tage unterwegs</div></div>
+      <div class="tile" title="Zählt Belege, Hotelnächte und Check-ins — Check-ins am Heimatort zählen nicht."><div class="n" id="statDays">0</div><div class="l">Tage unterwegs</div></div>
       <div class="tile"><div class="n" id="statEarth">0×</div><div class="l">um die Erde</div></div>
     </div>
     <div class="status">
@@ -100,11 +100,11 @@
 </main>
 
 <footer>
-  <span>Testlabor <b id="appver">v18</b> · lokal &amp; privat · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
+  <span>Testlabor <b id="appver">v19</b> · lokal &amp; privat · <a href="#" id="homeBtn">Heimat festlegen</a> · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
 </footer>
 
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/zxing-full.iife.js"></script>
-<script type="module" src="src/app.js?v=18"></script>
+<script type="module" src="src/app.js?v=19"></script>
 </body>
 </html>

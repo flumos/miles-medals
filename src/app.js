@@ -1,9 +1,9 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=18";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=18";
-import { guessJourney, findStationBest } from "./fcb.js?v=18";
-import { parseHotelText } from "./hotel.js?v=18";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=19";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=19";
+import { guessJourney, findStationBest } from "./fcb.js?v=19";
+import { parseHotelText } from "./hotel.js?v=19";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -79,6 +79,26 @@ const saveStays = (x) => localStorage.setItem(STAYS_KEY, JSON.stringify(x));
 const CHECKINS_KEY = "mm_checkins_v1";       // Standort-Logs: {date, city, lat, lon}
 const loadCheckins = () => JSON.parse(localStorage.getItem(CHECKINS_KEY) || "[]");
 const saveCheckins = (x) => localStorage.setItem(CHECKINS_KEY, JSON.stringify(x));
+const HOME_KEY = "mm_home_v1";               // Heimatstandort: {city, lat?, lon?}
+const loadHome = () => JSON.parse(localStorage.getItem(HOME_KEY) || "null");
+const saveHome = (h) => localStorage.setItem(HOME_KEY, JSON.stringify(h));
+
+// Heimat-Erkennung: gleicher Städtename, bei Check-ins zusätzlich Koordinaten-Nähe (< 30 km)
+const isHomeCity = (home, city) => !!home && !!city && city.toLowerCase() === home.city.toLowerCase();
+function isHomeCheckin(home, c) {
+  if (!home) return false;
+  if (isHomeCity(home, c.city)) return true;
+  return home.lat != null && c.lat != null && greatCircleKm([home.lat, home.lon], [c.lat, c.lon]) < 30;
+}
+
+// Koordinaten zu einem Städtenamen aus den lokalen DBs (für den Heimatstandort)
+async function findCityPos(name) {
+  const q = name.toLowerCase();
+  const [st, ap] = [await stations(), await airports()];
+  for (const v of Object.values(st)) if (v[3] && v[3].toLowerCase() === q) return { city: v[3], lat: v[0], lon: v[1] };
+  for (const v of Object.values(ap)) if (v[2] && v[2].toLowerCase() === q) return { city: v[2], lat: v[0], lon: v[1] };
+  return null;
+}
 
 // Nächstgelegene Stadt aus den lokalen Datenbanken (Bahnhöfe + Flughäfen) — kein Geocoding-Dienst
 async function nearestCity(lat, lon) {
@@ -344,7 +364,7 @@ function greatCircleArc(a, b, n = 48) {
   return pts;
 }
 
-async function renderMap(trips, checkins) {
+async function renderMap(trips, checkins, home) {
   const db = await airports();
   ensureMap();
   mapLayer.clearLayers();
@@ -379,7 +399,8 @@ async function renderMap(trips, checkins) {
     L.marker(v.pos, {
       icon: L.divIcon({ className: "mm-citylabel", iconAnchor: [-10, 6],
         html: (() => {
-          let lbl = code;
+          const atHome = isHomeCity(home, code) || (home && home.lat != null && greatCircleKm([home.lat, home.lon], v.pos) < 30);
+          let lbl = (atHome ? "\u2302 " : "") + code;
           if (lbl.length > 12 && lbl.includes(" ")) lbl = lbl.split(" ")[0];   // „Frankfurt am Main" → „Frankfurt"
           if (lbl.length > 12) lbl = lbl.slice(0, 11) + "…";
           return `${esc(lbl)}${v.count > 1 ? " ×" + v.count : ""}`;
@@ -392,6 +413,7 @@ async function renderMap(trips, checkins) {
 
 // ---------- Rendering ----------
 function render() {
+  const home = loadHome();
   const trips = loadTrips();
   const stays = loadStays();
   const checkins = loadCheckins();
@@ -411,8 +433,8 @@ function render() {
 
   const km = yTrips.reduce((s, t) => s + (t.km || 0), 0);
   const cities = new Map();
-  yTrips.forEach((t) => cities.set(t.toCity, (cities.get(t.toCity) || 0) + 1));
-  checkins.filter((c) => inYear(c.date)).forEach((c) => cities.set(c.city, (cities.get(c.city) || 0) + 1));
+  yTrips.filter((t) => !isHomeCity(home, t.toCity)).forEach((t) => cities.set(t.toCity, (cities.get(t.toCity) || 0) + 1));
+  checkins.filter((c) => inYear(c.date) && !isHomeCheckin(home, c)).forEach((c) => cities.set(c.city, (cities.get(c.city) || 0) + 1));
   const countries = new Set(yTrips.map((t) => t.toCountry).filter(Boolean));
 
   $("statKm").textContent = km.toLocaleString("de-DE");
@@ -424,7 +446,7 @@ function render() {
   const travelDays = new Set([
     ...yTrips.map((t) => t.date),
     ...nights.filter(inYear),
-    ...checkins.filter((c) => inYear(c.date)).map((c) => c.date),
+    ...checkins.filter((c) => inYear(c.date) && !isHomeCheckin(home, c)).map((c) => c.date),
   ]);
   $("statDays").textContent = travelDays.size;
 
@@ -453,16 +475,18 @@ function render() {
   $("nightVal").textContent = yNights;
   $("nightBar").style.width = Math.min(100, (yNights / 50) * 100) + "%";
 
-  renderMap(trips, checkins);
+  renderMap(trips, checkins, home);
 
   // Städte-Liste (Lebens-Sicht, nüchtern): Stadt · Land · Besuche · letzte Reise
   const cityStats = new Map();
   for (const c of checkins) {
+    if (isHomeCheckin(home, c)) continue;
     const e = cityStats.get(c.city) || { country: null, count: 0, km: 0, last: "" };
     e.count++; if (c.date > e.last) e.last = c.date;
     cityStats.set(c.city, e);
   }
   for (const t of trips) {
+    if (isHomeCity(home, t.toCity)) continue;
     const c = cityStats.get(t.toCity) || { country: t.toCountry, count: 0, km: 0, last: "" };
     c.count++; c.km += t.km || 0;
     if (t.date > c.last) c.last = t.date;
@@ -559,7 +583,7 @@ dz.addEventListener("drop", (e) => handleFiles([...e.dataTransfer.files]));
 
 $("exportBtn").addEventListener("click", (e) => {
   e.preventDefault();
-  const blob = new Blob([JSON.stringify({ trips: loadTrips(), stays: loadStays(), checkins: loadCheckins(), nights: loadNights() }, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify({ trips: loadTrips(), stays: loadStays(), checkins: loadCheckins(), nights: loadNights(), home: loadHome() }, null, 2)], { type: "application/json" });
   const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "miles-medals-export.json" });
   a.click();
 });
@@ -621,6 +645,29 @@ $("stayAdd").addEventListener("click", () => {
   $("stayToggle").setAttribute("aria-expanded", "false");
   render();
 });
+
+function homeLabel() {
+  const h = loadHome();
+  $("homeBtn").textContent = h ? `Heimat: ${h.city}` : "Heimat festlegen";
+}
+$("homeBtn").addEventListener("click", (e) => {
+  e.preventDefault();
+  const h = loadHome();
+  const input = prompt("Heimatort eintippen — oder leer lassen und OK: dann nehme ich deinen aktuellen Standort.", h ? h.city : "");
+  if (input === null) return;
+  const name = input.trim();
+  if (!name) {
+    if (!navigator.geolocation) { showError("Heimat", "Dein Browser gibt keinen Standort her — bitte den Ort eintippen."); return; }
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const { latitude: lat, longitude: lon } = pos.coords;
+      saveHome({ city: await nearestCity(lat, lon), lat: +lat.toFixed(4), lon: +lon.toFixed(4) });
+      homeLabel(); render();
+    }, (err) => showError("Heimat", "Kein Standort: " + err.message), { enableHighAccuracy: false, timeout: 10000 });
+    return;
+  }
+  findCityPos(name).then((hit) => { saveHome(hit || { city: name }); homeLabel(); render(); });
+});
+homeLabel();
 
 $("resetBtn").addEventListener("click", (e) => {
   e.preventDefault();
