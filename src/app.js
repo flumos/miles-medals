@@ -91,13 +91,39 @@ function isHomeCheckin(home, c) {
   return home.lat != null && c.lat != null && greatCircleKm([home.lat, home.lon], [c.lat, c.lon]) < 30;
 }
 
-// Koordinaten zu einem Städtenamen aus den lokalen DBs (für den Heimatstandort)
+// Koordinaten zu einem Städtenamen aus den lokalen DBs (Heimatstandort, Auto-Etappen).
+// Städtenamen sind mehrdeutig (sechs Bahnhöfe heißen „Münster", drei Orte): Kandidaten
+// werden nach Lage geclustert, dann gewinnt der Ort mit Hauptbahnhof, den meisten
+// Bahnhöfen und Flughafen in der Nähe. Präzisieren geht über den Bahnhofsnamen
+// („Münster (Westf)") — der matcht als Präfix, wenn kein Stadt-Feld exakt passt.
 async function findCityPos(name) {
-  const q = name.toLowerCase();
+  const q = name.trim().toLowerCase();
+  if (!q) return null;
   const [st, ap] = [await stations(), await airports()];
-  for (const v of Object.values(st)) if (v[3] && v[3].toLowerCase() === q) return { city: v[3], lat: v[0], lon: v[1] };
-  for (const v of Object.values(ap)) if (v[2] && v[2].toLowerCase() === q) return { city: v[2], lat: v[0], lon: v[1] };
-  return null;
+  let cands = Object.entries(st).filter(([, v]) => v[3] && v[3].toLowerCase() === q);
+  if (!cands.length) cands = Object.entries(st).filter(([, v]) => v[2] && v[2].toLowerCase().startsWith(q));
+  if (!cands.length) {
+    for (const v of Object.values(ap)) if (v[2] && v[2].toLowerCase() === q) return { city: v[2], lat: v[0], lon: v[1] };
+    return null;
+  }
+  const clusters = [];
+  for (const [key, v] of cands) {
+    let c = clusters.find((x) => greatCircleKm([x.lat, x.lon], [v[0], v[1]]) < 30);
+    if (!c) { c = { lat: v[0], lon: v[1], n: 0, hbf: null, score: 0, city: v[3] || v[2] }; clusters.push(c); }
+    c.n++;
+    if (key.includes("hbf") || /hauptbahnhof/i.test(v[2])) { c.hbf = v; c.score += 10; }
+    if (v[2] && v[3] && v[2].toLowerCase() === v[3].toLowerCase()) c.score += 2;   // Bahnhof heißt wie die Stadt
+  }
+  for (const c of clusters) {
+    c.score += c.n;
+    for (const v of Object.values(ap)) {
+      if (greatCircleKm([c.lat, c.lon], [v[0], v[1]]) < 30) { c.score += 5; break; }   // Flughafen in der Nähe = größerer Ort
+    }
+  }
+  clusters.sort((a, b) => b.score - a.score);
+  const best = clusters[0];
+  const pos = best.hbf ? [best.hbf[0], best.hbf[1]] : [best.lat, best.lon];
+  return { city: best.city, lat: pos[0], lon: pos[1] };
 }
 
 // Nächstgelegene Stadt aus den lokalen Datenbanken (Bahnhöfe + Flughäfen) — kein Geocoding-Dienst
