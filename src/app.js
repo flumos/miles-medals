@@ -1,9 +1,9 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=21.1";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=21.1";
-import { guessJourney, findStationBest } from "./fcb.js?v=21.1";
-import { parseHotelText } from "./hotel.js?v=21.1";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=22";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=22";
+import { guessJourney, findStationBest } from "./fcb.js?v=22";
+import { parseHotelText } from "./hotel.js?v=22";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -124,6 +124,71 @@ async function findCityPos(name) {
   const best = clusters[0];
   const pos = best.hbf ? [best.hbf[0], best.hbf[1]] : [best.lat, best.lon];
   return { city: best.city, lat: pos[0], lon: pos[1] };
+}
+
+// ---------- Ort-Autocomplete (lokale DB, keine externen Dienste) ----------
+let PLACES = null;
+async function places() {
+  if (!PLACES) {
+    const [st, ap] = [await stations(), await airports()];
+    PLACES = [];
+    for (const [key, v] of Object.entries(st)) {
+      if (!v[2]) continue;
+      PLACES.push({ label: v[2], sub: v[3] && v[3] !== v[2] ? v[3] : "", city: v[3] || v[2],
+                    lat: v[0], lon: v[1], hbf: key.includes("hbf"),
+                    l: v[2].toLowerCase(), s: (v[3] || "").toLowerCase() });
+    }
+    for (const [code, v] of Object.entries(ap)) {
+      if (!v[2]) continue;
+      const label = `${v[2]} (${code})`;
+      PLACES.push({ label, sub: v[3] || "", city: v[2], lat: v[0], lon: v[1], hbf: false,
+                    l: label.toLowerCase(), s: v[2].toLowerCase() });
+    }
+  }
+  return PLACES;
+}
+
+// Explizite Nutzer-Auswahl je Eingabefeld — schlägt jede Namens-Heuristik
+const AC_CHOICE = {};
+function attachAutocomplete(input) {
+  const wrap = input.parentElement;
+  const list = document.createElement("div");
+  list.className = "ac-list";
+  list.hidden = true;
+  wrap.appendChild(list);
+  let items = [];
+  const close = () => { list.hidden = true; list.innerHTML = ""; };
+  input.addEventListener("input", async () => {
+    delete AC_CHOICE[input.id];
+    const q = input.value.trim().toLowerCase();
+    if (q.length < 2) { close(); return; }
+    const all = await places();
+    items = [];
+    for (const pl of all) {
+      let rank = -1;
+      if (pl.l.startsWith(q)) rank = 0;
+      else if (pl.s && pl.s.startsWith(q)) rank = 1;
+      else if (q.length >= 3 && pl.l.includes(q)) rank = 2;
+      if (rank < 0) continue;
+      items.push({ pl, r: rank + (pl.hbf ? -0.5 : 0) + pl.l.length / 200 });
+    }
+    items.sort((a, b) => a.r - b.r);
+    items = items.slice(0, 8);
+    if (!items.length) { close(); return; }
+    list.innerHTML = items.map((x, i) =>
+      `<button type="button" data-i="${i}">${esc(x.pl.label)}${x.pl.sub ? `<em>${esc(x.pl.sub)}</em>` : ""}</button>`).join("");
+    list.hidden = false;
+  });
+  list.addEventListener("mousedown", (e) => {   // mousedown feuert vor blur
+    const b = e.target.closest("button[data-i]");
+    if (!b) return;
+    e.preventDefault();
+    const pl = items[+b.dataset.i].pl;
+    AC_CHOICE[input.id] = { city: pl.city, lat: pl.lat, lon: pl.lon };
+    input.value = pl.label;
+    close();
+  });
+  input.addEventListener("blur", () => setTimeout(close, 150));
 }
 
 // Nächstgelegene Stadt aus den lokalen Datenbanken (Bahnhöfe + Flughäfen) — kein Geocoding-Dienst
@@ -691,7 +756,7 @@ $("captureBtn").addEventListener("click", () => {
   menu.hidden = !menu.hidden;
   $("captureBtn").setAttribute("aria-expanded", String(!menu.hidden));
 });
-const hideForms = () => { $("stayForm").hidden = true; $("carForm").hidden = true; };
+const hideForms = () => { $("stayForm").hidden = true; $("carForm").hidden = true; $("homeForm").hidden = true; };
 menu.addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-cap]");
   if (!btn) return;
@@ -738,7 +803,7 @@ $("carAdd").addEventListener("click", async () => {
   if (!fromName || !toName || !date) { alert("Bitte Start, Ziel und Datum angeben."); return; }
   const btn = $("carAdd");
   btn.disabled = true; btn.textContent = "Route wird berechnet …";
-  const [a, b] = [await findCityPos(fromName), await findCityPos(toName)];
+  const [a, b] = [AC_CHOICE.carFrom || await findCityPos(fromName), AC_CHOICE.carTo || await findCityPos(toName)];
   const route = a && b ? await osrmRoute(a, b) : null;
   btn.disabled = false; btn.textContent = "Eintragen";
   const kmInput = parseInt($("carKm").value, 10);
@@ -759,6 +824,7 @@ $("carAdd").addEventListener("click", async () => {
   trips.sort((x, y) => (x.date < y.date ? 1 : -1));
   saveTrips(trips);
   ["carFrom", "carTo", "carDate", "carKm"].forEach((id) => $(id).value = "");
+  delete AC_CHOICE.carFrom; delete AC_CHOICE.carTo;
   $("carForm").hidden = true;
   render();
 });
@@ -809,21 +875,35 @@ function homeLabel() {
 }
 $("homeBtn").addEventListener("click", (e) => {
   e.preventDefault();
+  hideForms();
+  const f = $("homeForm");
+  f.hidden = false;
   const h = loadHome();
-  const input = prompt("Heimatort eintippen — oder leer lassen und OK: dann nehme ich deinen aktuellen Standort.", h ? h.city : "");
-  if (input === null) return;
-  const name = input.trim();
-  if (!name) {
-    if (!navigator.geolocation) { showError("Heimat", "Dein Browser gibt keinen Standort her — bitte den Ort eintippen."); return; }
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      const { latitude: lat, longitude: lon } = pos.coords;
-      saveHome({ city: await nearestCity(lat, lon), lat: +lat.toFixed(4), lon: +lon.toFixed(4) });
-      homeLabel(); render();
-    }, (err) => showError("Heimat", "Kein Standort: " + err.message), { enableHighAccuracy: false, timeout: 10000 });
-    return;
-  }
-  findCityPos(name).then((hit) => { saveHome(hit || { city: name }); homeLabel(); render(); });
+  $("homeCity").value = h ? h.city : "";
+  delete AC_CHOICE.homeCity;
+  f.scrollIntoView({ block: "center" });
+  $("homeCity").focus();
 });
+$("homeSave").addEventListener("click", async () => {
+  const name = $("homeCity").value.trim();
+  const choice = AC_CHOICE.homeCity || (name ? await findCityPos(name) : null);
+  if (!choice) { alert("Ort nicht gefunden — bitte einen Vorschlag aus der Liste wählen."); return; }
+  saveHome({ city: choice.city, lat: choice.lat, lon: choice.lon });
+  $("homeForm").hidden = true;
+  homeLabel(); render();
+});
+$("homeLocate").addEventListener("click", () => {
+  if (!navigator.geolocation) { showError("Heimat", "Dein Browser gibt keinen Standort her — bitte den Ort eintippen."); return; }
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    saveHome({ city: await nearestCity(lat, lon), lat: +lat.toFixed(4), lon: +lon.toFixed(4) });
+    $("homeForm").hidden = true;
+    homeLabel(); render();
+  }, (err) => showError("Heimat", "Kein Standort: " + err.message), { enableHighAccuracy: false, timeout: 10000 });
+});
+attachAutocomplete($("carFrom"));
+attachAutocomplete($("carTo"));
+attachAutocomplete($("homeCity"));
 homeLabel();
 
 $("resetBtn").addEventListener("click", (e) => {

@@ -7,7 +7,7 @@
 <meta name="description" content="Boardingpass rein, Reisejahr raus. Läuft komplett im Browser — nichts verlässt dein Gerät.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Staatliches&display=swap">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=21">
+<link rel="stylesheet" href="styles.css?v=22">
 </head>
 <body>
 
@@ -46,13 +46,21 @@
 
   <section id="carForm" class="stay-form" hidden>
     <div class="stay-grid">
-      <input id="carFrom" placeholder="Von (Stadt)" aria-label="Startort">
-      <input id="carTo" placeholder="Nach (Stadt)" aria-label="Zielort">
+      <span class="ac-wrap"><input id="carFrom" placeholder="Von (Ort oder Bahnhof)" aria-label="Startort" autocomplete="off"></span>
+      <span class="ac-wrap"><input id="carTo" placeholder="Nach (Ort oder Bahnhof)" aria-label="Zielort" autocomplete="off"></span>
       <input id="carDate" type="date" aria-label="Datum">
       <input id="carKm" type="number" min="1" placeholder="km (leer = Schätzung)" aria-label="Kilometer">
       <button id="carAdd" class="confirm">Eintragen</button>
     </div>
     <p class="form-note">Route &amp; km kommen von OSRM (OpenStreetMap) — dabei gehen nur die Start-/Ziel-Koordinaten nach draußen. Ohne Verbindung: Luftlinie &#215; 1,25 (&#8776;). Eigene km-Angabe gewinnt immer.</p>
+  </section>
+
+  <section id="homeForm" class="stay-form" hidden>
+    <div class="stay-grid home-grid">
+      <span class="ac-wrap"><input id="homeCity" placeholder="Heimatort (z. B. M&#252;nster (Westf))" aria-label="Heimatort" autocomplete="off"></span>
+      <button id="homeLocate" class="dismiss">aktuellen Standort verwenden</button>
+      <button id="homeSave" class="confirm">Speichern</button>
+    </div>
   </section>
 
   <section id="inbox" class="inbox" hidden>
@@ -126,7 +134,7 @@
 </main>
 
 <footer>
-  <span>Testlabor <b id="appver">v21</b> · lokal &amp; privat · <a href="#" id="homeBtn">Heimat festlegen</a> · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
+  <span>Testlabor <b id="appver">v22</b> · lokal &amp; privat · <a href="#" id="homeBtn">Heimat festlegen</a> · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
 </footer>
 
 <nav class="tabbar">
@@ -146,6 +154,6 @@
 
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/zxing-full.iife.js"></script>
-<script type="module" src="src/app.js?v=21.2"></script>
+<script type="module" src="src/app.js?v=22"></script>
 </body>
 </html>

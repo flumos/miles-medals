@@ -216,6 +216,26 @@ button.dismiss {
 /* Formulare (Übernachtung, Auto-Etappe) */
 .stay-form { margin-top: 8px; }
 .form-note { font-size: 11px; color: var(--muted); margin: 8px 0 0; }
+.home-grid { grid-template-columns: 1fr auto auto; }
+@media (max-width: 560px) { .home-grid { grid-template-columns: 1fr 1fr; } .home-grid .ac-wrap { grid-column: 1 / -1; } }
+
+/* Ort-Autocomplete (lokale Bahnhofs-/Flughafen-DB) */
+.ac-wrap { position: relative; display: block; min-width: 0; }
+.ac-wrap input { width: 100%; }
+.ac-list {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 950;
+  background: var(--card2); border: 1px solid var(--line); border-radius: 10px;
+  overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.ac-list button {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  width: 100%; min-height: 44px; padding: 11px 12px;
+  background: none; border: none; border-bottom: 1px solid var(--line);
+  color: var(--ink); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;
+}
+.ac-list button:last-child { border-bottom: none; }
+.ac-list button:hover, .ac-list button:focus-visible { background: var(--card); outline: none; }
+.ac-list button em { font-style: normal; font-family: var(--mono); font-size: 10.5px; color: var(--muted); flex-shrink: 0; }
 .stay-grid { display: grid; grid-template-columns: 2fr 1.2fr auto auto auto; gap: 8px; }
 @media (max-width: 560px) { .stay-grid { grid-template-columns: 1fr 1fr; } .stay-grid input:first-child { grid-column: 1 / -1; } }
 .stay-grid input {
