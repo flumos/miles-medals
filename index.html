@@ -5,31 +5,101 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Miles &amp; Medals — Testlabor</title>
 <meta name="description" content="Boardingpass rein, Reisejahr raus. Läuft komplett im Browser — nichts verlässt dein Gerät.">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Staatliches&display=swap">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=19">
+<link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
 
-<header class="hero">
+<header class="top">
   <div class="eyebrow">Miles &amp; Medals · Testlabor</div>
-  <h1>Dein Reisejahr beginnt hier</h1>
-  <p>Belege rein, Reisejahr raus. <strong>Nichts verlässt dein Gerät.</strong></p>
+  <div class="top-row">
+    <h1>Dein Reisejahr</h1>
+    <div class="top-right">
+      <span id="yearLabel" class="year-label"></span>
+      <button id="captureBtn" class="plus" aria-label="Erfassen" aria-expanded="false" title="Erfassen">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+      </button>
+    </div>
+  </div>
 </header>
 
+<div id="captureMenu" class="capture-menu" hidden>
+  <button data-cap="file"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"></rect><path d="M15 6v12M15 9.5h.01M15 14.5h.01"></path></svg>Beleg<em>Ticket oder Hotel-Bestätigung</em></button>
+  <button data-cap="stay"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 18v-7h13a5 5 0 0 1 5 5v2M3 14h18M6 11V8"></path></svg>Übernachtung<em>eintragen</em></button>
+  <button data-cap="car"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v-3l2-5h10l3 5h1a1 1 0 0 1 1 1v2M4 16h17"></path><circle cx="7.5" cy="17.5" r="1.6"></circle><circle cx="16.5" cy="17.5" r="1.6"></circle></svg>Auto-Etappe<em>manuell erfassen</em></button>
+  <button data-cap="checkin"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c-4.4-5.2-6.6-8.6-6.6-11.4a6.6 6.6 0 1 1 13.2 0C18.6 12.4 16.4 15.8 12 21z"></path><circle cx="12" cy="9.6" r="2.2"></circle></svg>Check-in<em>Standort loggen</em></button>
+  <input type="file" id="fileInput" accept="image/*" multiple hidden>
+</div>
+
 <main>
-  <section id="year" class="year" hidden>
-    <div class="year-head">
-      <div class="eyebrow" id="yearTitle">Dein Reisejahr</div>
-      <div class="year-km"><span id="statKm">0</span><small> km unterwegs</small></div>
+
+  <section id="stayForm" class="stay-form" hidden>
+    <div class="stay-grid">
+      <input id="stayHotel" placeholder="Hotel (z. B. Marriott Frankfurt)" aria-label="Hotelname">
+      <input id="stayCity" placeholder="Stadt" aria-label="Stadt">
+      <input id="stayFrom" type="date" aria-label="Anreise">
+      <input id="stayTo" type="date" aria-label="Abreise">
+      <button id="stayAdd" class="confirm">Eintragen</button>
     </div>
-    <div class="modal-split" id="modalSplit"></div>
-    <div class="tiles">
-      <div class="tile"><div class="n" id="statFlights">0</div><div class="l">Flüge</div></div>
-      <div class="tile"><div class="n" id="statCities">0</div><div class="l">Städte</div></div>
-      <div class="tile"><div class="n" id="statCountries">0</div><div class="l">Länder</div></div>
-      <div class="tile" title="Zählt Belege, Hotelnächte und Check-ins — Check-ins am Heimatort zählen nicht."><div class="n" id="statDays">0</div><div class="l">Tage unterwegs</div></div>
-      <div class="tile"><div class="n" id="statEarth">0×</div><div class="l">um die Erde</div></div>
+  </section>
+
+  <section id="carForm" class="stay-form" hidden>
+    <div class="stay-grid">
+      <input id="carFrom" placeholder="Von (Stadt)" aria-label="Startort">
+      <input id="carTo" placeholder="Nach (Stadt)" aria-label="Zielort">
+      <input id="carDate" type="date" aria-label="Datum">
+      <input id="carKm" type="number" min="1" placeholder="km (leer = Schätzung)" aria-label="Kilometer">
+      <button id="carAdd" class="confirm">Eintragen</button>
+    </div>
+  </section>
+
+  <section id="inbox" class="inbox" hidden>
+    <h2>Inbox</h2>
+    <div id="inboxCards"></div>
+  </section>
+
+  <p id="emptyHint" class="empty-hint" hidden>Noch keine Reisen — erfasse den ersten Beleg über das Plus oben rechts. Nichts verlässt dein Gerät.</p>
+
+  <section id="tab-uebersicht" class="tab">
+    <div class="stat-grid">
+      <div class="stat"><span class="sl">Städte</span><span class="sn" id="statCities">0</span></div>
+      <div class="stat"><span class="sl">Strecke</span><span class="sn"><span id="statKm">0</span><small>km</small></span></div>
+      <div class="stat"><span class="sl">Länder</span><span class="sn" id="statCountries">0</span></div>
+      <div class="stat" title="Zählt Belege, Hotelnächte und Check-ins — Check-ins am Heimatort zählen nicht."><span class="sl">Tage unterwegs</span><span class="sn" id="statDays">0</span></div>
+    </div>
+    <div class="single-row" id="farthestRow" hidden>
+      <span class="sl">Weiteste Etappe</span>
+      <b id="farthestRoute"></b>
+      <span class="sv" id="farthestKm"></span>
+    </div>
+    <div class="split-section" id="splitSection" hidden>
+      <div class="sl">Nach Bewegungsart</div>
+      <div class="split-bar" id="splitBar"></div>
+      <div class="split-legend" id="splitLegend"></div>
+    </div>
+    <div class="map-wrap" id="mapWrap">
+      <div id="map" aria-label="Weltkarte deiner Reisen"></div>
+      <div class="map-label">Karte</div>
+    </div>
+  </section>
+
+  <section id="tab-details" class="tab" hidden>
+    <div class="toplist">
+      <div class="toplist-head"><span class="sl">Top Städte</span><span class="meta" id="cityMeta"></span></div>
+      <div class="toplist-rows" id="topCities"></div>
+    </div>
+    <div class="toplist">
+      <div class="toplist-head"><span class="sl">Top Länder</span><span class="meta" id="countryMeta"></span></div>
+      <div class="toplist-rows" id="topCountries"></div>
+    </div>
+    <div class="toplist">
+      <div class="toplist-head"><span class="sl">Top Routen</span><span class="meta" id="routeMeta"></span></div>
+      <div class="toplist-rows" id="topRoutes"></div>
+    </div>
+    <div class="toplist">
+      <div class="toplist-head"><span class="sl">Top Hotels</span><span class="meta" id="hotelMeta"></span></div>
+      <div class="toplist-rows" id="topHotels"></div>
     </div>
     <div class="status">
       <div class="status-row">
@@ -46,65 +116,35 @@
     </div>
   </section>
 
-  <section class="capture">
-    <div id="dropzone" class="cap-tile" tabindex="0" role="button" aria-label="Beleg hochladen (Boardingpass, Bahnticket, Hotelbestätigung)">
-      <span class="ci" aria-hidden="true">🎫</span>
-      <span class="cl">Beleg<em>Ticket oder Hotel-Bestätigung</em></span>
-      <input type="file" id="fileInput" accept="image/*" multiple hidden>
-    </div>
-    <button id="stayToggle" class="cap-tile" aria-expanded="false">
-      <span class="ci" aria-hidden="true">🛏</span>
-      <span class="cl">Übernachtung<em>eintragen</em></span>
-    </button>
-    <button id="checkinBtn" class="cap-tile">
-      <span class="ci" aria-hidden="true">📍</span>
-      <span class="cl">Hier<em>Standort loggen</em></span>
-    </button>
-  </section>
-
-  <section id="stayForm" class="stay-form" hidden>
-    <div class="stay-grid">
-      <input id="stayHotel" placeholder="Hotel (z. B. Marriott Frankfurt)" aria-label="Hotelname">
-      <input id="stayCity" placeholder="Stadt" aria-label="Stadt">
-      <input id="stayFrom" type="date" aria-label="Anreise">
-      <input id="stayTo" type="date" aria-label="Abreise">
-      <button id="stayAdd" class="confirm">Eintragen</button>
+  <section id="tab-logbuch" class="tab" hidden>
+    <div class="log">
+      <div id="tripList"></div>
     </div>
   </section>
 
-  <section id="inbox" class="inbox" hidden>
-    <h2>Inbox</h2>
-    <div id="inboxCards"></div>
-  </section>
-
-  <section id="mapSection" class="map-section" hidden>
-    <h2>Karte</h2>
-    <div id="map" aria-label="Weltkarte deiner Reisen"></div>
-    <div class="map-legend">
-      <span><i class="dot dot-flug"></i>FLUG</span>
-      <span><i class="dot dot-bahn"></i>BAHN ≈</span>
-      <span><i class="dot dot-ort"></i>ORT</span>
-      <span class="hint">NODE-RING = BESUCHE</span>
-    </div>
-  </section>
-
-  <section id="collection" class="collection" hidden>
-    <h2>Städte</h2>
-    <div id="cityList"></div>
-  </section>
-
-  <section id="log" class="log" hidden>
-    <h2>Logbuch</h2>
-    <div id="tripList"></div>
-  </section>
 </main>
 
 <footer>
-  <span>Testlabor <b id="appver">v19</b> · lokal &amp; privat · <a href="#" id="homeBtn">Heimat festlegen</a> · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
+  <span>Testlabor <b id="appver">v20</b> · lokal &amp; privat · <a href="#" id="homeBtn">Heimat festlegen</a> · <a href="#" id="exportBtn">Export (JSON)</a> · <a href="#" id="resetBtn">Zurücksetzen</a></span>
 </footer>
+
+<nav class="tabbar">
+  <button data-tab="uebersicht" class="active">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="6" height="6" rx="1.5"></rect><rect x="10" y="2" width="6" height="6" rx="1.5"></rect><rect x="2" y="10" width="6" height="6" rx="1.5"></rect><rect x="10" y="10" width="6" height="6" rx="1.5"></rect></svg>
+    <span>Übersicht</span>
+  </button>
+  <button data-tab="details">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 15V9M9 15V3M15 15v-4"></path></svg>
+    <span>Details</span>
+  </button>
+  <button data-tab="logbuch">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 3h9v12H5z"></path><path d="M5 3c-1 0-1.5.5-1.5 1.5v9C3.5 14.5 4 15 5 15"></path><path d="M8 7h4M8 10h4"></path></svg>
+    <span>Logbuch</span>
+  </button>
+</nav>
 
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/zxing-full.iife.js"></script>
-<script type="module" src="src/app.js?v=19"></script>
+<script type="module" src="src/app.js?v=20"></script>
 </body>
 </html>

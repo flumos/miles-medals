@@ -1,9 +1,9 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=19";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=19";
-import { guessJourney, findStationBest } from "./fcb.js?v=19";
-import { parseHotelText } from "./hotel.js?v=19";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=20";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=20";
+import { guessJourney, findStationBest } from "./fcb.js?v=20";
+import { parseHotelText } from "./hotel.js?v=20";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -120,6 +120,20 @@ function stayNights(stay) {
   return out;
 }
 const SEG_GOAL = 30;                          // Vielflieger-Segment-Ziel (später konfigurierbar)
+const ROAD_DETOUR = 1.25;                     // Auto: Luftlinie -> Straßen-km-Schätzung
+
+// Gletscher-Palette (Design v0.4): Ereignisfarben
+const C = { flug: "#6FC7DD", bahn: "#5B7FA6", auto: "#9AA7B5", night: "#4E7A8C", checkin: "#A8D8E8" };
+const svgI = (paths, color) => `<svg class="mi" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+const modeIcon = (m) => m === "train"
+  ? svgI('<rect x="5" y="3" width="14" height="13" rx="3"/><path d="M5 10h14M9 19l-1.5 2M15 19l1.5 2"/>', C.bahn)
+  : m === "car"
+    ? svgI('<path d="M4 16v-3l2-5h10l3 5h1a1 1 0 0 1 1 1v2M4 16h17"/><circle cx="7.5" cy="17.5" r="1.6"/><circle cx="16.5" cy="17.5" r="1.6"/>', C.auto)
+    : svgI('<path d="M2 12L22 3l-7 19-3.5-8.5L2 12z"/>', C.flug);
+const BED_ICON = svgI('<path d="M3 18v-7h13a5 5 0 0 1 5 5v2M3 14h18M6 11V8"/>', C.night);
+const PIN_ICON = svgI('<path d="M12 21c-4.4-5.2-6.6-8.6-6.6-11.4a6.6 6.6 0 1 1 13.2 0C18.6 12.4 16.4 15.8 12 21z"/><circle cx="12" cy="9.6" r="2.2"/>', C.checkin);
+const apx = (t) => (t.est || t.mode === "train") ? "\u2248 " : "";
+const COUNTRY = { DE: "Deutschland", AT: "\u00d6sterreich", CH: "Schweiz", FR: "Frankreich", NL: "Niederlande", BE: "Belgien", LU: "Luxemburg", DK: "D\u00e4nemark", PL: "Polen", CZ: "Tschechien", IT: "Italien", ES: "Spanien", PT: "Portugal", GB: "Gro\u00dfbritannien", IE: "Irland", SE: "Schweden", NO: "Norwegen", FI: "Finnland", US: "USA", CN: "China", JP: "Japan", SG: "Singapur", AE: "VAE", TR: "T\u00fcrkei", GR: "Griechenland", HU: "Ungarn" };
 
 // ---------- Barcode → Inbox ----------
 ZXingWASM.prepareZXingModule({
@@ -127,7 +141,7 @@ ZXingWASM.prepareZXingModule({
 });
 
 async function handleFiles(files) {
-  const dz = $("dropzone");
+  const dz = $("captureBtn");
   dz.classList.add("busy");
   for (const file of files) {
     try {
@@ -262,10 +276,10 @@ function addInboxCard(flight) {
   const card = document.createElement("div");
   card.className = "inbox-card";
   card.innerHTML = `
-    <div class="route"><span>${esc(flight.from)}</span><span class="plane">${flight.mode === "train" ? "🚆" : "✈"}</span><span>${esc(flight.to)}</span></div>
+    <div class="route"><span>${esc(flight.from)}</span><span class="plane">${modeIcon(flight.mode)}</span><span>${esc(flight.to)}</span></div>
     <div class="meta"><b>${esc(flight.fromCity)} → ${esc(flight.toCity)}</b>
       · ${flight.carrier} ${flight.flightNo}${flight.seat ? " · Sitz " + flight.seat : ""}
-      ${flight.km ? " · <b>" + (flight.mode === "train" ? "≈ " : "") + flight.km.toLocaleString("de-DE") + " km</b>" : ""}</div>
+      ${flight.km ? " · <b>" + apx(flight) + flight.km.toLocaleString("de-DE") + " km</b>" : ""}</div>
     <div class="actions">
       <input type="date" value="${flight.date}" aria-label="Flugdatum">
       <button class="confirm">In die Sammlung</button>
@@ -273,7 +287,7 @@ function addInboxCard(flight) {
     </div>`;
   if (flight.dateUnknown) {
     card.querySelector("input").classList.add("attention");
-    card.querySelector(".meta").insertAdjacentHTML("beforeend", " · <b style=\"color:var(--sunset)\">Datum aus dem Ticket nicht lesbar — bitte setzen</b>");
+    card.querySelector(".meta").insertAdjacentHTML("beforeend", " · <b style=\"color:var(--acc)\">Datum aus dem Ticket nicht lesbar — bitte setzen</b>");
   }
   card.querySelector("input").addEventListener("input", (e) => e.target.classList.remove("attention"));
   card.querySelector(".confirm").addEventListener("click", () => {
@@ -337,6 +351,7 @@ function ensureMap() {
     subdomains: "abcd", maxZoom: 12,
   }).addTo(map);
   mapLayer = L.layerGroup().addTo(map);
+  map.setView([50.5, 10], 4);
   return map;
 }
 
@@ -377,7 +392,7 @@ async function renderMap(trips, checkins, home) {
   for (const t of trips) {
     const pa = t.fromPos || (db[t.from] ? [db[t.from][0], db[t.from][1]] : null);
     const pb = t.toPos || (db[t.to] ? [db[t.to][0], db[t.to][1]] : null);
-    const color = t.mode === "train" ? "#5E9A94" : "#E8703A";
+    const color = t.mode === "train" ? C.bahn : t.mode === "car" ? C.auto : C.flug;
     if (pa) bumpPos(t.from, pa, false, color);
     if (pb) bumpPos(t.to, pb, true, color);
     if (pa && pb) L.polyline(greatCircleArc(pa, pb), {
@@ -385,7 +400,7 @@ async function renderMap(trips, checkins, home) {
     }).addTo(mapLayer);
   }
   for (const c of (checkins || [])) {
-    if (c.lat != null) bumpPos(c.city, [c.lat, c.lon], true, "#F2997B");
+    if (c.lat != null) bumpPos(c.city, [c.lat, c.lon], true, C.checkin);
   }
   const bounds = [];
   for (const [code, v] of visits) {
@@ -419,17 +434,15 @@ function render() {
   const checkins = loadCheckins();
   const nights = [...loadNights(), ...stays.flatMap(stayNights)];
   const has = trips.length > 0 || nights.length > 0 || checkins.length > 0;
-  $("year").hidden = $("log").hidden = !has;
-  $("collection").hidden = $("mapSection").hidden = trips.length === 0;
+  $("emptyHint").hidden = has;
   $("inbox").hidden = $("inboxCards").children.length === 0;
-  if (!has) return;
 
-  // Jahres-Panel: das Jahr der jüngsten Reise (i. d. R. das aktuelle)
+  // Jahr: das der jüngsten Reise (i. d. R. das aktuelle)
   const year = trips.length ? Math.max(...trips.map((t) => +t.date.slice(0, 4) || 0)) : new Date().getFullYear();
   const inYear = (iso) => iso && iso.startsWith(String(year));
   const yTrips = trips.filter((t) => inYear(t.date));
   const yNights = nights.filter(inYear).length;
-  $("yearTitle").textContent = `Dein Reisejahr ${year}`;
+  $("yearLabel").textContent = year;
 
   const km = yTrips.reduce((s, t) => s + (t.km || 0), 0);
   const cities = new Map();
@@ -438,11 +451,8 @@ function render() {
   const countries = new Set(yTrips.map((t) => t.toCountry).filter(Boolean));
 
   $("statKm").textContent = km.toLocaleString("de-DE");
-  const yFlights = yTrips.filter((t) => t.mode !== "train");
-  $("statFlights").textContent = yFlights.length;
   $("statCities").textContent = cities.size;
   $("statCountries").textContent = countries.size;
-  $("statEarth").textContent = (km / 40075).toLocaleString("de-DE", { maximumFractionDigits: 1 }) + "×";
   const travelDays = new Set([
     ...yTrips.map((t) => t.date),
     ...nights.filter(inYear),
@@ -450,24 +460,31 @@ function render() {
   ]);
   $("statDays").textContent = travelDays.size;
 
-  // Modal-Split: km je Verkehrsmittel
+  // Weiteste Etappe (Passjäger-Muster: eine Einzelzeile)
+  const far = yTrips.filter((t) => t.km).sort((a, b) => b.km - a.km)[0];
+  $("farthestRow").hidden = !far;
+  if (far) {
+    $("farthestRoute").textContent = `${far.from} \u2192 ${far.to}`;
+    $("farthestKm").textContent = `${apx(far)}${far.km.toLocaleString("de-DE")} km`;
+  }
+
+  // Bewegungsart: gestapelter Balken + Inline-Legende
   const modes = [
-    { key: "flight", label: "Flug", cls: "ms-flug" },
-    { key: "train",  label: "Bahn", cls: "ms-bahn" },
-    { key: "car",    label: "Auto", cls: "ms-auto" },
+    { key: "flight", label: "FLUG", color: C.flug },
+    { key: "train",  label: "BAHN", color: C.bahn },
+    { key: "car",    label: "AUTO", color: C.auto },
   ];
   const kmBy = {};
-  yTrips.forEach((t) => { kmBy[t.mode || "flight"] = (kmBy[t.mode || "flight"] || 0) + (t.km || 0); });
-  $("modalSplit").innerHTML = modes.filter((m) => kmBy[m.key]).map((m) => {
-    const v = kmBy[m.key], pct = km ? Math.round((v / km) * 100) : 0;
-    return `<div class="ms-row">
-      <span class="ms-label">${m.label}</span>
-      <span class="ms-bar"><i class="${m.cls}" style="width:${pct}%"></i></span>
-      <span class="ms-val">${v.toLocaleString("de-DE")} km · ${pct} %</span>
-    </div>`;
-  }).join("");
+  yTrips.forEach((t) => { const m = t.mode || "flight"; kmBy[m] = (kmBy[m] || 0) + (t.km || 0); });
+  const active = modes.filter((m) => kmBy[m.key]);
+  $("splitSection").hidden = !active.length;
+  $("splitBar").innerHTML = active.map((m) =>
+    `<i style="width:${km ? Math.max(1, Math.round((kmBy[m.key] / km) * 100)) : 0}%;background:${m.color}"></i>`).join("");
+  $("splitLegend").innerHTML = active.map((m) =>
+    `<span><i style="background:${m.color}"></i><b>${m.label}</b> ${kmBy[m.key].toLocaleString("de-DE")}</span>`).join("");
 
-  // Status-Fortschritt: Segmente + Elite-Nächte
+  // Status-Fortschritt (Details-Tab)
+  const yFlights = yTrips.filter((t) => (t.mode || "flight") === "flight");
   $("segVal").textContent = yFlights.length;
   $("segGoal").textContent = SEG_GOAL;
   $("segBar").style.width = Math.min(100, (yFlights.length / SEG_GOAL) * 100) + "%";
@@ -476,33 +493,74 @@ function render() {
   $("nightBar").style.width = Math.min(100, (yNights / 50) * 100) + "%";
 
   renderMap(trips, checkins, home);
+  renderTopLists(trips, stays, checkins, home);
+  $("tripList").innerHTML = renderDays(trips, stays, checkins);
+}
 
-  // Städte-Liste (Lebens-Sicht, nüchtern): Stadt · Land · Besuche · letzte Reise
+// ---------- Details: Top-Listen (Lebens-Sicht, ohne Heimat) ----------
+function renderTopLists(trips, stays, checkins, home) {
+  const fmt = (n) => n.toLocaleString("de-DE");
+  const rows = (items, mapper, total) => {
+    const html = items.slice(0, 5).map((it, i) => mapper(it, i)).join("");
+    const more = total - Math.min(items.length, 5);
+    return html + (more > 0 ? `<div class="tl-more">+ ${more} weitere</div>` : "");
+  };
+
   const cityStats = new Map();
   for (const c of checkins) {
     if (isHomeCheckin(home, c)) continue;
-    const e = cityStats.get(c.city) || { country: null, count: 0, km: 0, last: "" };
-    e.count++; if (c.date > e.last) e.last = c.date;
-    cityStats.set(c.city, e);
+    const e = cityStats.get(c.city) || { count: 0, km: 0 };
+    e.count++; cityStats.set(c.city, e);
   }
   for (const t of trips) {
     if (isHomeCity(home, t.toCity)) continue;
-    const c = cityStats.get(t.toCity) || { country: t.toCountry, count: 0, km: 0, last: "" };
-    c.count++; c.km += t.km || 0;
-    if (t.date > c.last) c.last = t.date;
-    cityStats.set(t.toCity, c);
+    const e = cityStats.get(t.toCity) || { count: 0, km: 0 };
+    e.count++; e.km += t.km || 0;
+    cityStats.set(t.toCity, e);
   }
-  $("cityList").innerHTML = [...cityStats.entries()]
-    .sort((x, y) => y[1].count - x[1].count || (y[1].last > x[1].last ? 1 : -1))
-    .map(([city, c]) => `
-      <div class="city-row">
-        <span class="c-name">${esc(city)}${c.country ? ` <span class="c-cc">${esc(c.country)}</span>` : ""}</span>
-        <span class="c-count">${c.count}×</span>
-        <span class="c-km">${c.km.toLocaleString("de-DE")} km</span>
-        <span class="c-last">${c.last}</span>
-      </div>`).join("");
+  const cityArr = [...cityStats.entries()].sort((a, b) => b[1].count - a[1].count || b[1].km - a[1].km);
+  $("cityMeta").textContent = cityArr.length ? `${cityArr.length} gesamt` : "";
+  $("topCities").innerHTML = rows(cityArr, ([city, e], i) =>
+    `<div class="tl-row"><span class="rank">${i + 1}</span><span class="name">${esc(city)}</span><span class="count">\u00d7${e.count}</span><span class="val">${fmt(e.km)} km</span></div>`, cityArr.length);
 
-  $("tripList").innerHTML = renderDays(trips, stays, checkins);
+  const countryStats = new Map();
+  for (const t of trips) {
+    if (!t.toCountry) continue;
+    const e = countryStats.get(t.toCountry) || { count: 0, km: 0 };
+    e.count++; e.km += t.km || 0;
+    countryStats.set(t.toCountry, e);
+  }
+  const countryArr = [...countryStats.entries()].sort((a, b) => b[1].count - a[1].count || b[1].km - a[1].km);
+  $("countryMeta").textContent = countryArr.length ? `${countryArr.length} gesamt` : "";
+  $("topCountries").innerHTML = rows(countryArr, ([cc, e], i) =>
+    `<div class="tl-row"><span class="rank">${i + 1}</span><span class="name">${esc(COUNTRY[cc] || cc)}</span><span class="count">\u00d7${e.count}</span><span class="val">${fmt(e.km)} km</span></div>`, countryArr.length);
+
+  const mcol = { flight: C.flug, train: C.bahn, car: C.auto };
+  const routeStats = new Map();
+  for (const t of trips) {
+    if (!t.from || !t.to) continue;
+    const key = `${t.from} \u2192 ${t.to}`;
+    const e = routeStats.get(key) || { count: 0, km: 0, mode: t.mode || "flight", est: false };
+    e.count++; e.km += t.km || 0; e.est = e.est || !!t.est || t.mode === "train";
+    routeStats.set(key, e);
+  }
+  const routeArr = [...routeStats.entries()].sort((a, b) => b[1].count - a[1].count || b[1].km - a[1].km);
+  $("routeMeta").textContent = trips.length ? `${trips.length} Etappen` : "";
+  $("topRoutes").innerHTML = rows(routeArr, ([route, e], i) =>
+    `<div class="tl-row"><span class="rank">${i + 1}</span><i class="mdot" style="background:${mcol[e.mode] || C.flug}"></i><span class="name">${esc(route)}</span><span class="count">\u00d7${e.count}</span><span class="val">${e.est ? "\u2248 " : ""}${fmt(e.km)} km</span></div>`, routeArr.length);
+
+  const hotelStats = new Map();
+  for (const st of stays) {
+    const key = st.hotel || st.city || "Hotel";
+    const e = hotelStats.get(key) || { nights: 0, city: st.city };
+    e.nights += stayNights(st).length;
+    hotelStats.set(key, e);
+  }
+  const hotelArr = [...hotelStats.entries()].sort((a, b) => b[1].nights - a[1].nights);
+  const nightsTotal = hotelArr.reduce((s, [, e]) => s + e.nights, 0);
+  $("hotelMeta").textContent = hotelArr.length ? `${nightsTotal} N\u00e4chte in ${hotelArr.length} ${hotelArr.length === 1 ? "Hotel" : "Hotels"}` : "";
+  $("topHotels").innerHTML = rows(hotelArr, ([hotel, e], i) =>
+    `<div class="tl-row"><span class="rank">${i + 1}</span><span class="name">${esc(hotel)}${e.city && hotel !== e.city ? ` \u00b7 ${esc(e.city)}` : ""}</span><span class="val">${e.nights} ${e.nights === 1 ? "Nacht" : "N\u00e4chte"}</span></div>`, hotelArr.length);
 }
 
 // ---------- Tages-Timeline: Basis-Einheit Tag, Übernachtungen als Balken ----------
@@ -546,9 +604,9 @@ function renderDays(trips, stays, checkins) {
       track = '<span class="d-track"><i class="dot dot-checkin"></i></span>';
     }
     const parts = [];
-    for (const t of legs) parts.push(`<span class="d-leg">${t.mode === "train" ? "🚆" : "✈"} ${esc(t.from)} → ${esc(t.to)}${t.km ? ` <em>${(t.mode === "train" ? "≈ " : "") + t.km.toLocaleString("de-DE")} km</em>` : ""}<button class="del" data-k="trip" data-i="${t._i}" title="Eintrag löschen">✕</button></span>`);
-    if (night && night.from === d) parts.push(`<span class="d-leg">🛏 ${esc(night.hotel || "Hotel")}${night.city ? ` <em>${esc(night.city)}</em>` : ""}<button class="del" data-k="stay" data-i="${night._i}" title="Übernachtung löschen">✕</button></span>`);
-    for (const c of (checks || [])) parts.push(`<span class="d-leg">📍 ${c.label ? esc(c.label) + " <em>· " + esc(c.city) + "</em>" : esc(c.city)}<button class="del edit" data-k="checkin-edit" data-i="${c._i}" title="Label ändern">✎</button><button class="del" data-k="checkin" data-i="${c._i}" title="Check-in löschen">✕</button></span>`);
+    for (const t of legs) parts.push(`<span class="d-leg">${modeIcon(t.mode)} ${esc(t.from)} → ${esc(t.to)}${t.km ? ` <em>${apx(t) + t.km.toLocaleString("de-DE")} km</em>` : ""}<button class="del" data-k="trip" data-i="${t._i}" title="Eintrag löschen">✕</button></span>`);
+    if (night && night.from === d) parts.push(`<span class="d-leg">${BED_ICON} ${esc(night.hotel || "Hotel")}${night.city ? ` <em>${esc(night.city)}</em>` : ""}<button class="del" data-k="stay" data-i="${night._i}" title="Übernachtung löschen">✕</button></span>`);
+    for (const c of (checks || [])) parts.push(`<span class="d-leg">${PIN_ICON} ${c.label ? esc(c.label) + " <em>· " + esc(c.city) + "</em>" : esc(c.city)}<button class="del edit" data-k="checkin-edit" data-i="${c._i}" title="Label ändern">✎</button><button class="del" data-k="checkin" data-i="${c._i}" title="Check-in löschen">✕</button></span>`);
     const loc = night ? (night.city || night.hotel) : (legs.length ? legs[legs.length - 1].toCity : (checks && checks.length ? (checks[0].label || checks[0].city) : ""));
     const main = parts.length || loc
       ? `<span class="d-main">${loc ? `<b>${esc(loc)}</b>` : ""}${parts.join("")}</span>`
@@ -573,13 +631,82 @@ function renderDays(trips, stays, checkins) {
 }
 
 // ---------- Wiring ----------
-const dz = $("dropzone"), fi = $("fileInput");
-dz.addEventListener("click", () => fi.click());
-dz.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") fi.click(); });
+const fi = $("fileInput");
 fi.addEventListener("change", () => { handleFiles([...fi.files]); fi.value = ""; });
-["dragover", "dragenter"].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("drag"); }));
-["dragleave", "drop"].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("drag"); }));
-dz.addEventListener("drop", (e) => handleFiles([...e.dataTransfer.files]));
+
+// Erfassen-Menü am Plus (oben rechts)
+const menu = $("captureMenu");
+const closeMenu = () => { menu.hidden = true; $("captureBtn").setAttribute("aria-expanded", "false"); };
+$("captureBtn").addEventListener("click", () => {
+  menu.hidden = !menu.hidden;
+  $("captureBtn").setAttribute("aria-expanded", String(!menu.hidden));
+});
+const hideForms = () => { $("stayForm").hidden = true; $("carForm").hidden = true; };
+menu.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-cap]");
+  if (!btn) return;
+  const cap = btn.dataset.cap;
+  if (cap === "file") { fi.click(); closeMenu(); }
+  if (cap === "stay") { hideForms(); $("stayForm").hidden = false; closeMenu(); $("stayHotel").focus(); }
+  if (cap === "car") { hideForms(); $("carForm").hidden = false; closeMenu(); $("carFrom").focus(); }
+  if (cap === "checkin") { closeMenu(); doCheckin(); }
+});
+
+// Drag & Drop: die ganze Seite nimmt Belege an
+["dragover", "dragenter"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault()));
+document.addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfer.files.length) handleFiles([...e.dataTransfer.files]); });
+
+// Tab-Navigation
+document.querySelectorAll(".tabbar button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tabbar button").forEach((x) => x.classList.toggle("active", x === btn));
+    for (const id of ["uebersicht", "details", "logbuch"]) $("tab-" + id).hidden = id !== btn.dataset.tab;
+    if (btn.dataset.tab === "uebersicht" && map) setTimeout(() => map.invalidateSize(), 0);
+  });
+});
+
+function doCheckin() {
+  if (!navigator.geolocation) { showError("Standort", "Dein Browser gibt keinen Standort her."); return; }
+  $("captureBtn").classList.add("busy");
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    const city = await nearestCity(lat, lon);
+    const list = loadCheckins();
+    list.push({ date: new Date().toISOString().slice(0, 10), city, lat: +lat.toFixed(4), lon: +lon.toFixed(4) });
+    saveCheckins(list);
+    $("captureBtn").classList.remove("busy");
+    render();
+  }, (err) => {
+    $("captureBtn").classList.remove("busy");
+    showError("Standort", "Kein Standort: " + err.message);
+  }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
+}
+
+// Auto-Etappe: manuell erfassen, km aus der Städte-DB geschätzt (Luftlinie × Straßen-Umweg)
+$("carAdd").addEventListener("click", async () => {
+  const fromName = $("carFrom").value.trim(), toName = $("carTo").value.trim(), date = $("carDate").value;
+  if (!fromName || !toName || !date) { alert("Bitte Start, Ziel und Datum angeben."); return; }
+  const [a, b] = [await findCityPos(fromName), await findCityPos(toName)];
+  const kmInput = parseInt($("carKm").value, 10);
+  let km = Number.isFinite(kmInput) && kmInput > 0 ? kmInput : null;
+  let est = false;
+  if (!km && a && b) { km = Math.round(greatCircleKm([a.lat, a.lon], [b.lat, b.lon]) * ROAD_DETOUR); est = true; }
+  if (!km) { alert("Ort nicht in der Städte-DB gefunden — bitte km direkt angeben."); return; }
+  const trips = loadTrips();
+  trips.push({
+    mode: "car",
+    from: a ? a.city : fromName, to: b ? b.city : toName,
+    fromCity: a ? a.city : fromName, toCity: b ? b.city : toName,
+    toCountry: null,
+    fromPos: a ? [a.lat, a.lon] : null, toPos: b ? [b.lat, b.lon] : null,
+    km, est, date, carrier: "", flightNo: "", seat: "",
+  });
+  trips.sort((x, y) => (x.date < y.date ? 1 : -1));
+  saveTrips(trips);
+  ["carFrom", "carTo", "carDate", "carKm"].forEach((id) => $(id).value = "");
+  $("carForm").hidden = true;
+  render();
+});
 
 $("exportBtn").addEventListener("click", (e) => {
   e.preventDefault();
@@ -608,30 +735,6 @@ $("tripList").addEventListener("click", (e) => {
   render();
 });
 
-$("stayToggle").addEventListener("click", () => {
-  const f = $("stayForm");
-  f.hidden = !f.hidden;
-  $("stayToggle").setAttribute("aria-expanded", String(!f.hidden));
-  if (!f.hidden) $("stayHotel").focus();
-});
-
-$("checkinBtn").addEventListener("click", () => {
-  if (!navigator.geolocation) { showError("Standort", "Dein Browser gibt keinen Standort her."); return; }
-  $("checkinBtn").classList.add("busy");
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    const { latitude: lat, longitude: lon } = pos.coords;
-    const city = await nearestCity(lat, lon);
-    const list = loadCheckins();
-    list.push({ date: new Date().toISOString().slice(0, 10), city, lat: +lat.toFixed(4), lon: +lon.toFixed(4) });
-    saveCheckins(list);
-    $("checkinBtn").classList.remove("busy");
-    render();
-  }, (err) => {
-    $("checkinBtn").classList.remove("busy");
-    showError("Standort", "Kein Standort: " + err.message);
-  }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
-});
-
 $("stayAdd").addEventListener("click", () => {
   const stay = { hotel: $("stayHotel").value.trim(), city: $("stayCity").value.trim(),
                  from: $("stayFrom").value, to: $("stayTo").value };
@@ -642,7 +745,6 @@ $("stayAdd").addEventListener("click", () => {
   saveStays(stays);
   ["stayHotel", "stayCity", "stayFrom", "stayTo"].forEach((id) => $(id).value = "");
   $("stayForm").hidden = true;
-  $("stayToggle").setAttribute("aria-expanded", "false");
   render();
 });
 
