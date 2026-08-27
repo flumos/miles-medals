@@ -1,9 +1,9 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=20";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=20";
-import { guessJourney, findStationBest } from "./fcb.js?v=20";
-import { parseHotelText } from "./hotel.js?v=20";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=21";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=21";
+import { guessJourney, findStationBest } from "./fcb.js?v=21";
+import { parseHotelText } from "./hotel.js?v=21";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -120,7 +120,27 @@ function stayNights(stay) {
   return out;
 }
 const SEG_GOAL = 30;                          // Vielflieger-Segment-Ziel (später konfigurierbar)
-const ROAD_DETOUR = 1.25;                     // Auto: Luftlinie -> Straßen-km-Schätzung
+const ROAD_DETOUR = 1.25;                     // Auto: Fallback-Schätzung, wenn kein Routing verfügbar
+
+// Auto-Route über OSRM (öffentlicher OSM-Demo-Server, kein Key): echte Straßen-km + Routen-Geometrie.
+// Einzige Anfrage, die das Labor nach draußen schickt (nur Start-/Ziel-Koordinaten) — im Formular ausgewiesen.
+async function osrmRoute(a, b) {
+  const url = `https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=simplified&geometries=geojson`;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: ctl.signal });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const r = data.routes && data.routes[0];
+    if (!r || !r.distance) return null;
+    return {
+      km: Math.round(r.distance / 1000),
+      path: r.geometry.coordinates.map(([lon, lat]) => [+lat.toFixed(4), +lon.toFixed(4)]),
+    };
+  } catch { return null; }
+  finally { clearTimeout(timer); }
+}
 
 // Gletscher-Palette (Design v0.4): Ereignisfarben
 const C = { flug: "#6FC7DD", bahn: "#5B7FA6", auto: "#9AA7B5", night: "#4E7A8C", checkin: "#A8D8E8" };
@@ -395,7 +415,7 @@ async function renderMap(trips, checkins, home) {
     const color = t.mode === "train" ? C.bahn : t.mode === "car" ? C.auto : C.flug;
     if (pa) bumpPos(t.from, pa, false, color);
     if (pb) bumpPos(t.to, pb, true, color);
-    if (pa && pb) L.polyline(greatCircleArc(pa, pb), {
+    if (pa && pb) L.polyline(t.path && t.path.length > 1 ? t.path : greatCircleArc(pa, pb), {
       color, weight: 1, opacity: 0.7, interactive: false,
     }).addTo(mapLayer);
   }
@@ -686,9 +706,13 @@ function doCheckin() {
 $("carAdd").addEventListener("click", async () => {
   const fromName = $("carFrom").value.trim(), toName = $("carTo").value.trim(), date = $("carDate").value;
   if (!fromName || !toName || !date) { alert("Bitte Start, Ziel und Datum angeben."); return; }
+  const btn = $("carAdd");
+  btn.disabled = true; btn.textContent = "Route wird berechnet …";
   const [a, b] = [await findCityPos(fromName), await findCityPos(toName)];
+  const route = a && b ? await osrmRoute(a, b) : null;
+  btn.disabled = false; btn.textContent = "Eintragen";
   const kmInput = parseInt($("carKm").value, 10);
-  let km = Number.isFinite(kmInput) && kmInput > 0 ? kmInput : null;
+  let km = Number.isFinite(kmInput) && kmInput > 0 ? kmInput : (route ? route.km : null);
   let est = false;
   if (!km && a && b) { km = Math.round(greatCircleKm([a.lat, a.lon], [b.lat, b.lon]) * ROAD_DETOUR); est = true; }
   if (!km) { alert("Ort nicht in der Städte-DB gefunden — bitte km direkt angeben."); return; }
@@ -700,6 +724,7 @@ $("carAdd").addEventListener("click", async () => {
     toCountry: null,
     fromPos: a ? [a.lat, a.lon] : null, toPos: b ? [b.lat, b.lon] : null,
     km, est, date, carrier: "", flightNo: "", seat: "",
+    ...(route && route.path.length > 1 ? { path: route.path } : {}),
   });
   trips.sort((x, y) => (x.date < y.date ? 1 : -1));
   saveTrips(trips);
