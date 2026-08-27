@@ -129,6 +129,7 @@ h2 {
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
 }
 .leaflet-container { font-family: "Public Sans", sans-serif; background: var(--mapbg); }
+.leaflet-tile { filter: brightness(0.72) contrast(1.05) saturate(0.85); }   /* Esri-Grau Richtung Karten-Schwarz dimmen */
 .leaflet-top, .leaflet-bottom { z-index: 700; }   /* Karten-Controls bleiben unter der Tab-Bar (z-index 900) */
 .leaflet-bar a { background: var(--card); color: var(--ink); border-bottom: 1px solid var(--line); }
 .leaflet-bar a:hover { background: var(--card2); color: var(--ink); }

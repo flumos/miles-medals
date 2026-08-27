@@ -1,9 +1,9 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=22";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=22";
-import { guessJourney, findStationBest } from "./fcb.js?v=22";
-import { parseHotelText } from "./hotel.js?v=22";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=22.1";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=22.1";
+import { guessJourney, findStationBest } from "./fcb.js?v=22.1";
+import { parseHotelText } from "./hotel.js?v=22.1";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -458,12 +458,10 @@ function ensureMap() {
   map = L.map("map", { worldCopyJump: true, attributionControl: true, zoomControl: true });
   map.attributionControl.setPrefix(false);
   // CARTO-Basemaps brauchen seit 2026-08 einen API-Key — Esri Dark Gray ist keyless und passt zu Gletscher
+  // Nur die textfreie Basis-Ebene — Beschriftung übernehmen die eigenen Mono-Labels (Instrument-Register)
   L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
     attribution: 'Esri &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 12,
-  }).addTo(map);
-  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}", {
-    maxZoom: 12, opacity: 0.55, interactive: false,
   }).addTo(map);
   mapLayer = L.layerGroup().addTo(map);
   map.setView([50.5, 10], 4);
