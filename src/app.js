@@ -1,9 +1,9 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=24.1";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=24.1";
-import { guessJourney, findStationBest } from "./fcb.js?v=24.1";
-import { parseHotelText } from "./hotel.js?v=24.1";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=24.2";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=24.2";
+import { guessJourney, findStationBest } from "./fcb.js?v=24.2";
+import { parseHotelText } from "./hotel.js?v=24.2";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -537,13 +537,13 @@ async function renderMap(trips, checkins, home) {
   const visits = new Map();   // Code/Name → {pos, count, km, last, modes, city}
   const bumpPos = (code, pos, isDest, info) => {
     const v = visits.get(code) || { pos, count: 0, km: 0, last: "", modes: new Set(), city: null };
+    if (info && info.city && !v.city) v.city = info.city;
     if (isDest) {
       v.count++;
       if (info) {
         v.km += info.km || 0;
         if (info.date && info.date > v.last) v.last = info.date;
         if (info.mode) v.modes.add(info.mode);
-        if (info.city && !v.city) v.city = info.city;
       }
     }
     visits.set(code, v);
@@ -552,7 +552,7 @@ async function renderMap(trips, checkins, home) {
     const pa = t.fromPos || (db[t.from] ? [db[t.from][0], db[t.from][1]] : null);
     const pb = t.toPos || (db[t.to] ? [db[t.to][0], db[t.to][1]] : null);
     const color = t.mode === "train" ? C.bahn : t.mode === "car" ? C.auto : C.flug;
-    if (pa) bumpPos(t.from, pa, false);
+    if (pa) bumpPos(t.from, pa, false, { city: t.fromCity });
     if (pb) bumpPos(t.to, pb, true, { km: t.km || 0, date: t.date, mode: t.mode || "flight", city: t.toCity });
     if (pa && pb) L.polyline(t.path && t.path.length > 1 ? t.path : greatCircleArc(pa, pb), {
       color, weight: 1, opacity: 0.7, interactive: false,
@@ -566,8 +566,8 @@ async function renderMap(trips, checkins, home) {
   const NODE_C = "#E8EDF2";
   const nodes = [];
   for (const [code, v] of visits) {
-    let n = nodes.find((x) => greatCircleKm(x.pos, v.pos) < 20);
-    if (!n) { n = { pos: v.pos, count: 0, km: 0, last: "", modes: new Set(), city: null, members: [] }; nodes.push(n); }
+    let n = nodes.find((x) => (v.city && x.city === v.city) || greatCircleKm(x.pos, v.pos) < 20);
+    if (!n) { n = { pos: v.pos, count: 0, km: 0, last: "", modes: new Set(), city: v.city || null, members: [] }; nodes.push(n); }
     n.count += v.count;
     n.km += v.km;
     if (v.last > n.last) n.last = v.last;
