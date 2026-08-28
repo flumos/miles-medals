@@ -1,9 +1,9 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=23.1";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=23.1";
-import { guessJourney, findStationBest } from "./fcb.js?v=23.1";
-import { parseHotelText } from "./hotel.js?v=23.1";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=24";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=24";
+import { guessJourney, findStationBest } from "./fcb.js?v=24";
+import { parseHotelText } from "./hotel.js?v=24";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -203,6 +203,20 @@ async function nearestCity(lat, lon) {
   for (const v of Object.values(ap)) consider(v[0], v[1], v[2]);
   return best && best.d < 80 ? best.city : `${lat.toFixed(2)}° / ${lon.toFixed(2)}°`;
 }
+// Flughafen-Städtenamen (OurAirports, teils englisch: „Munich") auf die Bahn-Städtenamen
+// normalisieren, damit Flug/Bahn/Auto in derselben Stadt landen
+async function canonicalCity(name, pos) {
+  if (!pos) return name;
+  const st = await stations();
+  let best = null;
+  for (const v of Object.values(st)) {
+    if (!v[3]) continue;
+    const d = greatCircleKm(pos, [v[0], v[1]]);
+    if (d < 25 && (!best || d < best.d)) best = { d, city: v[3] };
+  }
+  return best ? best.city : name;
+}
+
 // Nächte eines Aufenthalts als ISO-Daten (Anreise bis Tag vor Abreise)
 function stayNights(stay) {
   const out = [];
@@ -306,10 +320,12 @@ async function handleFiles(files) {
         const db = await airports();
         for (const leg of pass.legs) {
           const a = db[leg.from], b = db[leg.to];
+          const fromCity = a ? await canonicalCity(a[2], [a[0], a[1]]) : leg.from;
+          const toCity = b ? await canonicalCity(b[2], [b[0], b[1]]) : leg.to;
           addInboxCard({
             mode: "flight",
             from: leg.from, to: leg.to,
-            fromCity: a ? a[2] : leg.from, toCity: b ? b[2] : leg.to,
+            fromCity, toCity,
             toCountry: b ? b[3] : null,
             fromPos: a ? [a[0], a[1]] : null, toPos: b ? [b[0], b[1]] : null,
             km: a && b ? greatCircleKm(a, b) : null,
@@ -518,9 +534,9 @@ async function renderMap(trips, checkins, home) {
   ensureMap();
   mapLayer.clearLayers();
   labelData = [];
-  const visits = new Map();   // Code/Name → {pos, count, color}
-  const bumpPos = (code, pos, isDest, color) => {
-    const v = visits.get(code) || { pos, count: 0, color };
+  const visits = new Map();   // Code/Name → {pos, count}
+  const bumpPos = (code, pos, isDest) => {
+    const v = visits.get(code) || { pos, count: 0 };
     if (isDest) v.count++;
     visits.set(code, v);
   };
@@ -528,32 +544,46 @@ async function renderMap(trips, checkins, home) {
     const pa = t.fromPos || (db[t.from] ? [db[t.from][0], db[t.from][1]] : null);
     const pb = t.toPos || (db[t.to] ? [db[t.to][0], db[t.to][1]] : null);
     const color = t.mode === "train" ? C.bahn : t.mode === "car" ? C.auto : C.flug;
-    if (pa) bumpPos(t.from, pa, false, color);
-    if (pb) bumpPos(t.to, pb, true, color);
+    if (pa) bumpPos(t.from, pa, false);
+    if (pb) bumpPos(t.to, pb, true);
     if (pa && pb) L.polyline(t.path && t.path.length > 1 ? t.path : greatCircleArc(pa, pb), {
       color, weight: 1, opacity: 0.7, interactive: false,
     }).addTo(mapLayer);
   }
   for (const c of (checkins || [])) {
-    if (c.lat != null) bumpPos(c.city, [c.lat, c.lon], true, C.checkin);
+    if (c.lat != null) bumpPos(c.city, [c.lat, c.lon], true);
+  }
+  // Orte im 20-km-Radius zusammenlegen (Flughafen + Hbf = eine Stadt); Knoten neutral,
+  // Verkehrsmittel-Farbe tragen nur die Linien (ein Ort ist per Flug, Bahn UND Auto erreichbar)
+  const NODE_C = "#E8EDF2";
+  const nodes = [];
+  for (const [code, v] of visits) {
+    let n = nodes.find((x) => greatCircleKm(x.pos, v.pos) < 20);
+    if (!n) { n = { pos: v.pos, count: 0, members: [] }; nodes.push(n); }
+    n.count += v.count;
+    n.members.push({ code, count: v.count, pos: v.pos });
   }
   const bounds = [];
-  for (const [code, v] of visits) {
-    bounds.push(v.pos);
-    L.circleMarker(v.pos, { radius: 3.5, color: v.color, fillColor: v.color, fillOpacity: 1, weight: 0 }).addTo(mapLayer);
+  for (const n of nodes) {
+    n.members.sort((x, y) => y.count - x.count);
+    const named = n.members.find((m) => !/^[A-Z]{3}$/.test(m.code));
+    const name = named ? named.code : n.members[0].code;
+    const pos = n.members[0].pos;
+    bounds.push(pos);
+    L.circleMarker(pos, { radius: 3.5, color: NODE_C, fillColor: NODE_C, fillOpacity: 1, weight: 0 }).addTo(mapLayer);
     // Node-Ringe: einer pro Besuch (gedeckelt), Radius wächst
-    for (let i = 1; i <= Math.min(v.count, 4); i++) {
-      L.circleMarker(v.pos, { radius: 5 + i * 3.5, color: v.color, fill: false, weight: 0.8,
+    for (let i = 1; i <= Math.min(n.count, 4); i++) {
+      L.circleMarker(pos, { radius: 5 + i * 3.5, color: NODE_C, fill: false, weight: 0.8,
         opacity: Math.max(0.15, 0.65 - i * 0.13), interactive: false }).addTo(mapLayer);
     }
-    const atHome = isHomeCity(home, code) || (home && home.lat != null && greatCircleKm([home.lat, home.lon], v.pos) < 30);
-    let lbl = code;
+    const atHome = isHomeCity(home, name) || (home && home.lat != null && greatCircleKm([home.lat, home.lon], pos) < 30);
+    let lbl = name;
     if (lbl.length > 12 && lbl.includes(" ")) lbl = lbl.split(" ")[0];   // „Frankfurt am Main" → „Frankfurt"
     if (lbl.length > 12) lbl = lbl.slice(0, 11) + "…";
     labelData.push({
-      pos: v.pos,
-      text: `${atHome ? "\u2302 " : ""}${lbl}${v.count > 1 ? " ×" + v.count : ""}`,
-      prio: (atHome ? 1000 : 0) + v.count,
+      pos,
+      text: `${atHome ? "\u2302 " : ""}${lbl}${n.count > 1 ? " ×" + n.count : ""}`,
+      prio: (atHome ? 1000 : 0) + n.count,
     });
   }
   labelData.sort((x, y) => y.prio - x.prio);
@@ -951,5 +981,16 @@ async function migrateTripCodes() {
   if (changed) saveTrips(trips);
 }
 
-migrateTripCodes().then(render);
+async function migrateCityNames() {
+  const trips = loadTrips();
+  let changed = false;
+  for (const t of trips) {
+    if ((t.mode || "flight") !== "flight") continue;
+    if (t.fromPos && t.fromCity) { const c = await canonicalCity(t.fromCity, t.fromPos); if (c !== t.fromCity) { t.fromCity = c; changed = true; } }
+    if (t.toPos && t.toCity) { const c = await canonicalCity(t.toCity, t.toPos); if (c !== t.toCity) { t.toCity = c; changed = true; } }
+  }
+  if (changed) saveTrips(trips);
+}
+
+migrateTripCodes().then(migrateCityNames).then(render);
 render();
