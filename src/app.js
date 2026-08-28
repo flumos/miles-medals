@@ -1,9 +1,9 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=24.3";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=24.3";
-import { guessJourney, findStationBest } from "./fcb.js?v=24.3";
-import { parseHotelText } from "./hotel.js?v=24.3";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=25";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=25";
+import { guessJourney, findStationBest } from "./fcb.js?v=25";
+import { parseHotelText } from "./hotel.js?v=25";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -548,14 +548,25 @@ async function renderMap(trips, checkins, home) {
     }
     visits.set(code, v);
   };
+  const routes = new Map();   // Modus + Endpunkte (ungerichtet) → gebündelte Linie, Intensität = Häufigkeit
   for (const t of trips) {
     const pa = t.fromPos || (db[t.from] ? [db[t.from][0], db[t.from][1]] : null);
     const pb = t.toPos || (db[t.to] ? [db[t.to][0], db[t.to][1]] : null);
     const color = t.mode === "train" ? C.bahn : t.mode === "car" ? C.auto : C.flug;
     if (pa) bumpPos(t.from, pa, false, { city: t.fromCity });
     if (pb) bumpPos(t.to, pb, true, { km: t.km || 0, date: t.date, mode: t.mode || "flight", city: t.toCity });
-    if (pa && pb) L.polyline(t.path && t.path.length > 1 ? t.path : greatCircleArc(pa, pb), {
-      color, weight: 1, opacity: 0.7, interactive: false,
+    if (!(pa && pb)) continue;
+    const key = `${t.mode || "flight"}|${[t.from, t.to].sort().join("|")}`;
+    const r = routes.get(key) || { count: 0, path: null, pa, pb, color };
+    r.count++;
+    if (!r.path && t.path && t.path.length > 1) r.path = t.path;
+    routes.set(key, r);
+  }
+  for (const r of routes.values()) {
+    L.polyline(r.path || greatCircleArc(r.pa, r.pb), {
+      color: r.color, interactive: false,
+      weight: Math.min(2.2, 0.9 + 0.25 * (r.count - 1)),
+      opacity: Math.min(0.9, 0.35 + 0.18 * (r.count - 1)),
     }).addTo(mapLayer);
   }
   for (const c of (checkins || [])) {
@@ -886,7 +897,7 @@ $("carAdd").addEventListener("click", async () => {
   if (!km && a && b) { km = Math.round(greatCircleKm([a.lat, a.lon], [b.lat, b.lon]) * ROAD_DETOUR); est = true; }
   if (!km) { alert("Ort nicht in der Städte-DB gefunden — bitte km direkt angeben."); return; }
   const trips = loadTrips();
-  trips.push({
+  const leg = {
     mode: "car",
     from: a ? a.city : fromName, to: b ? b.city : toName,
     fromCity: a ? a.city : fromName, toCity: b ? b.city : toName,
@@ -894,10 +905,20 @@ $("carAdd").addEventListener("click", async () => {
     fromPos: a ? [a.lat, a.lon] : null, toPos: b ? [b.lat, b.lon] : null,
     km, est, date, carrier: "", flightNo: "", seat: "",
     ...(route && route.path.length > 1 ? { path: route.path } : {}),
-  });
+  };
+  trips.push(leg);
+  if ($("carRoundtrip").checked) {
+    trips.push({ ...leg,
+      from: leg.to, to: leg.from,
+      fromCity: leg.toCity, toCity: leg.fromCity,
+      fromPos: leg.toPos, toPos: leg.fromPos,
+      ...(leg.path ? { path: [...leg.path].reverse() } : {}),
+    });
+  }
   trips.sort((x, y) => (x.date < y.date ? 1 : -1));
   saveTrips(trips);
   ["carFrom", "carTo", "carDate", "carKm"].forEach((id) => $(id).value = "");
+  $("carRoundtrip").checked = false;
   delete AC_CHOICE.carFrom; delete AC_CHOICE.carTo;
   $("carForm").hidden = true;
   render();
