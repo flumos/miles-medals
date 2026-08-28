@@ -133,6 +133,15 @@ h2 {
 .leaflet-top, .leaflet-bottom { z-index: 700; }   /* Karten-Controls bleiben unter der Tab-Bar (z-index 900) */
 .leaflet-bar a { background: var(--card); color: var(--ink); border-bottom: 1px solid var(--line); }
 .leaflet-bar a:hover { background: var(--card2); color: var(--ink); }
+.leaflet-popup-content-wrapper {
+  background: var(--card2); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.leaflet-popup-content { margin: 10px 14px; }
+.leaflet-popup-tip { background: var(--card2); border: 1px solid var(--line); }
+.mm-pop { font-family: var(--mono); font-size: 11.5px; color: var(--muted); line-height: 1.6; }
+.mm-pop b { display: block; font-family: "Public Sans", sans-serif; font-size: 13.5px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
 .mm-citylabel {
   font-family: var(--mono);
   font-size: 10px; letter-spacing: 1.5px;

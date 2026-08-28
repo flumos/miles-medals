@@ -534,10 +534,18 @@ async function renderMap(trips, checkins, home) {
   ensureMap();
   mapLayer.clearLayers();
   labelData = [];
-  const visits = new Map();   // Code/Name → {pos, count}
-  const bumpPos = (code, pos, isDest) => {
-    const v = visits.get(code) || { pos, count: 0 };
-    if (isDest) v.count++;
+  const visits = new Map();   // Code/Name → {pos, count, km, last, modes, city}
+  const bumpPos = (code, pos, isDest, info) => {
+    const v = visits.get(code) || { pos, count: 0, km: 0, last: "", modes: new Set(), city: null };
+    if (isDest) {
+      v.count++;
+      if (info) {
+        v.km += info.km || 0;
+        if (info.date && info.date > v.last) v.last = info.date;
+        if (info.mode) v.modes.add(info.mode);
+        if (info.city && !v.city) v.city = info.city;
+      }
+    }
     visits.set(code, v);
   };
   for (const t of trips) {
@@ -545,13 +553,13 @@ async function renderMap(trips, checkins, home) {
     const pb = t.toPos || (db[t.to] ? [db[t.to][0], db[t.to][1]] : null);
     const color = t.mode === "train" ? C.bahn : t.mode === "car" ? C.auto : C.flug;
     if (pa) bumpPos(t.from, pa, false);
-    if (pb) bumpPos(t.to, pb, true);
+    if (pb) bumpPos(t.to, pb, true, { km: t.km || 0, date: t.date, mode: t.mode || "flight", city: t.toCity });
     if (pa && pb) L.polyline(t.path && t.path.length > 1 ? t.path : greatCircleArc(pa, pb), {
       color, weight: 1, opacity: 0.7, interactive: false,
     }).addTo(mapLayer);
   }
   for (const c of (checkins || [])) {
-    if (c.lat != null) bumpPos(c.city, [c.lat, c.lon], true);
+    if (c.lat != null) bumpPos(c.city, [c.lat, c.lon], true, { km: 0, date: c.date, mode: "checkin", city: c.city });
   }
   // Orte im 20-km-Radius zusammenlegen (Flughafen + Hbf = eine Stadt); Knoten neutral,
   // Verkehrsmittel-Farbe tragen nur die Linien (ein Ort ist per Flug, Bahn UND Auto erreichbar)
@@ -559,15 +567,19 @@ async function renderMap(trips, checkins, home) {
   const nodes = [];
   for (const [code, v] of visits) {
     let n = nodes.find((x) => greatCircleKm(x.pos, v.pos) < 20);
-    if (!n) { n = { pos: v.pos, count: 0, members: [] }; nodes.push(n); }
+    if (!n) { n = { pos: v.pos, count: 0, km: 0, last: "", modes: new Set(), city: null, members: [] }; nodes.push(n); }
     n.count += v.count;
+    n.km += v.km;
+    if (v.last > n.last) n.last = v.last;
+    v.modes.forEach((m) => n.modes.add(m));
+    if (v.city && !n.city) n.city = v.city;
     n.members.push({ code, count: v.count, pos: v.pos });
   }
   const bounds = [];
   for (const n of nodes) {
     n.members.sort((x, y) => y.count - x.count);
-    const named = n.members.find((m) => !/^[A-Z]{3}$/.test(m.code));
-    const name = named ? named.code : n.members[0].code;
+    const iata = n.members.find((m) => /^[A-Z]{3}$/.test(m.code));
+    const name = iata ? iata.code : n.members[0].code;
     const pos = n.members[0].pos;
     bounds.push(pos);
     L.circleMarker(pos, { radius: 3.5, color: NODE_C, fillColor: NODE_C, fillOpacity: 1, weight: 0 }).addTo(mapLayer);
@@ -585,6 +597,16 @@ async function renderMap(trips, checkins, home) {
       text: `${atHome ? "\u2302 " : ""}${lbl}${n.count > 1 ? " ×" + n.count : ""}`,
       prio: (atHome ? 1000 : 0) + n.count,
     });
+    // Antippbarer Ort: unsichtbare größere Tap-Fläche mit Detail-Popup
+    const MODE_DE = { flight: "Flug", train: "Bahn", car: "Auto", checkin: "Check-in" };
+    const fmtDate = (iso) => iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.` : "";
+    const popup = `<div class="mm-pop"><b>${esc(name)}${n.city && n.city !== name ? " · " + esc(n.city) : ""}</b>` +
+      `${n.count} ${n.count === 1 ? "Besuch" : "Besuche"}${n.last ? " · zuletzt " + fmtDate(n.last) : ""}` +
+      `${n.km ? "<br>" + n.km.toLocaleString("de-DE") + " km angereist" : ""}` +
+      `${n.modes.size ? "<br>" + [...n.modes].map((m) => MODE_DE[m] || m).join(" · ") : ""}</div>`;
+    L.circleMarker(pos, { radius: 16, opacity: 0, fillOpacity: 0 })
+      .bindPopup(popup, { closeButton: false, offset: [0, -6] })
+      .addTo(mapLayer);
   }
   labelData.sort((x, y) => y.prio - x.prio);
   placeLabels();
