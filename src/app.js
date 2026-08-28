@@ -1,9 +1,9 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=24.2";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=24.2";
-import { guessJourney, findStationBest } from "./fcb.js?v=24.2";
-import { parseHotelText } from "./hotel.js?v=24.2";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=24.3";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=24.3";
+import { guessJourney, findStationBest } from "./fcb.js?v=24.3";
+import { parseHotelText } from "./hotel.js?v=24.3";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -583,10 +583,10 @@ async function renderMap(trips, checkins, home) {
     const pos = n.members[0].pos;
     bounds.push(pos);
     L.circleMarker(pos, { radius: 3.5, color: NODE_C, fillColor: NODE_C, fillOpacity: 1, weight: 0 }).addTo(mapLayer);
-    // Node-Ringe: einer pro Besuch (gedeckelt), Radius wächst
-    for (let i = 1; i <= Math.min(n.count, 4); i++) {
-      L.circleMarker(pos, { radius: 5 + i * 3.5, color: NODE_C, fill: false, weight: 0.8,
-        opacity: Math.max(0.15, 0.65 - i * 0.13), interactive: false }).addTo(mapLayer);
+    // Wiederholungs-Halo: ein dezenter Ring ab dem zweiten Besuch — die Anzahl steht im Label (×n)
+    if (n.count > 1) {
+      L.circleMarker(pos, { radius: 7.5, color: NODE_C, fill: false, weight: 0.8,
+        opacity: 0.35, interactive: false }).addTo(mapLayer);
     }
     const atHome = isHomeCity(home, name) || (home && home.lat != null && greatCircleKm([home.lat, home.lon], pos) < 30);
     let lbl = name;
