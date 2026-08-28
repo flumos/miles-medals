@@ -1,9 +1,9 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=23";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=23";
-import { guessJourney, findStationBest } from "./fcb.js?v=23";
-import { parseHotelText } from "./hotel.js?v=23";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=23.1";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=23.1";
+import { guessJourney, findStationBest } from "./fcb.js?v=23.1";
+import { parseHotelText } from "./hotel.js?v=23.1";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -452,7 +452,26 @@ function addStayCard(stay) {
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 // ---------- Karte (Instrument-Register, Leaflet + CARTO dark wie Passjäger) ----------
-let map = null, mapLayer = null;
+let map = null, mapLayer = null, labelLayer = null, labelData = [];
+
+// Labels nach Priorität platzieren, kollidierende ausblenden — läuft bei jedem Zoom/Move neu,
+// beim Reinzoomen tauchen die restlichen Orte automatisch auf (Punkte/Ringe bleiben immer sichtbar)
+function placeLabels() {
+  if (!map || !labelLayer) return;
+  labelLayer.clearLayers();
+  const placed = [];
+  for (const l of labelData) {
+    const pt = map.latLngToContainerPoint(l.pos);
+    const w = l.text.length * 7.5 + 10, h = 18;
+    const r = { x1: pt.x + 8, y1: pt.y - h / 2, x2: pt.x + 8 + w, y2: pt.y + h / 2 };
+    if (placed.some((o) => r.x1 < o.x2 + 4 && r.x2 > o.x1 - 4 && r.y1 < o.y2 + 2 && r.y2 > o.y1 - 2)) continue;
+    placed.push(r);
+    L.marker(l.pos, {
+      icon: L.divIcon({ className: "mm-citylabel", iconAnchor: [-10, 6], html: esc(l.text) }),
+      interactive: false, keyboard: false,
+    }).addTo(labelLayer);
+  }
+}
 function ensureMap() {
   if (map) return map;
   map = L.map("map", { worldCopyJump: true, attributionControl: true, zoomControl: true });
@@ -464,6 +483,8 @@ function ensureMap() {
     maxZoom: 12,
   }).addTo(map);
   mapLayer = L.layerGroup().addTo(map);
+  labelLayer = L.layerGroup().addTo(map);
+  map.on("zoomend moveend", placeLabels);
   map.setView([50.5, 10], 4);
   return map;
 }
@@ -496,6 +517,7 @@ async function renderMap(trips, checkins, home) {
   const db = await airports();
   ensureMap();
   mapLayer.clearLayers();
+  labelData = [];
   const visits = new Map();   // Code/Name → {pos, count, color}
   const bumpPos = (code, pos, isDest, color) => {
     const v = visits.get(code) || { pos, count: 0, color };
@@ -524,18 +546,18 @@ async function renderMap(trips, checkins, home) {
       L.circleMarker(v.pos, { radius: 5 + i * 3.5, color: v.color, fill: false, weight: 0.8,
         opacity: Math.max(0.15, 0.65 - i * 0.13), interactive: false }).addTo(mapLayer);
     }
-    L.marker(v.pos, {
-      icon: L.divIcon({ className: "mm-citylabel", iconAnchor: [-10, 6],
-        html: (() => {
-          const atHome = isHomeCity(home, code) || (home && home.lat != null && greatCircleKm([home.lat, home.lon], v.pos) < 30);
-          let lbl = (atHome ? "\u2302 " : "") + code;
-          if (lbl.length > 12 && lbl.includes(" ")) lbl = lbl.split(" ")[0];   // „Frankfurt am Main" → „Frankfurt"
-          if (lbl.length > 12) lbl = lbl.slice(0, 11) + "…";
-          return `${esc(lbl)}${v.count > 1 ? " ×" + v.count : ""}`;
-        })() }),
-      interactive: false, keyboard: false,
-    }).addTo(mapLayer);
+    const atHome = isHomeCity(home, code) || (home && home.lat != null && greatCircleKm([home.lat, home.lon], v.pos) < 30);
+    let lbl = code;
+    if (lbl.length > 12 && lbl.includes(" ")) lbl = lbl.split(" ")[0];   // „Frankfurt am Main" → „Frankfurt"
+    if (lbl.length > 12) lbl = lbl.slice(0, 11) + "…";
+    labelData.push({
+      pos: v.pos,
+      text: `${atHome ? "\u2302 " : ""}${lbl}${v.count > 1 ? " ×" + v.count : ""}`,
+      prio: (atHome ? 1000 : 0) + v.count,
+    });
   }
+  labelData.sort((x, y) => y.prio - x.prio);
+  placeLabels();
   if (bounds.length) map.fitBounds(bounds, { padding: [36, 36], maxZoom: 6 });
 }
 
