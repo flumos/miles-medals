@@ -1,9 +1,9 @@
 // Miles & Medals — Testlabor. Alles lokal: Barcode-Dekodierung (ZXing WASM),
 // BCBP-Parsing, Speicherung (localStorage). Kein Server, kein Tracking.
-import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=22.1";
-import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=22.1";
-import { guessJourney, findStationBest } from "./fcb.js?v=22.1";
-import { parseHotelText } from "./hotel.js?v=22.1";
+import { parseBCBP, julianToDate, greatCircleKm } from "./bcbp.js?v=23";
+import { looksLikeUIC, extractCompressed, parseUICPayload, RAIL_DETOUR } from "./uic.js?v=23";
+import { guessJourney, findStationBest } from "./fcb.js?v=23";
+import { parseHotelText } from "./hotel.js?v=23";
 
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = "mm_trips_v1";
@@ -698,7 +698,7 @@ function renderDays(trips, stays, checkins) {
   let emptyRun = [];
   const flushEmpty = () => {
     if (emptyRun.length > 3) {
-      rows.push(`<div class="day-row day-gap"><span class="d-track"></span><span class="d-date"></span><span class="d-main">· ${emptyRun.length} Tage ·</span></div>`);
+      rows.push(`<div class="day-row day-gap"><span class="d-track"></span><span class="d-date"></span><span class="d-loc">· ${emptyRun.length} Tage ·</span></div>`);
     } else {
       for (const d of emptyRun.reverse()) rows.push(dayRow(d, [], null));
     }
@@ -717,14 +717,16 @@ function renderDays(trips, stays, checkins) {
       track = '<span class="d-track"><i class="dot dot-checkin"></i></span>';
     }
     const parts = [];
-    for (const t of legs) parts.push(`<span class="d-leg">${modeIcon(t.mode)} ${esc(t.from)} → ${esc(t.to)}${t.km ? ` <em>${apx(t) + t.km.toLocaleString("de-DE")} km</em>` : ""}<button class="del" data-k="trip" data-i="${t._i}" title="Eintrag löschen">✕</button></span>`);
-    if (night && night.from === d) parts.push(`<span class="d-leg">${BED_ICON} ${esc(night.hotel || "Hotel")}${night.city ? ` <em>${esc(night.city)}</em>` : ""}<button class="del" data-k="stay" data-i="${night._i}" title="Übernachtung löschen">✕</button></span>`);
-    for (const c of (checks || [])) parts.push(`<span class="d-leg">${PIN_ICON} ${c.label ? esc(c.label) + " <em>· " + esc(c.city) + "</em>" : esc(c.city)}<button class="del edit" data-k="checkin-edit" data-i="${c._i}" title="Label ändern">✎</button><button class="del" data-k="checkin" data-i="${c._i}" title="Check-in löschen">✕</button></span>`);
+    for (const t of legs) parts.push(`<span class="d-leg">${modeIcon(t.mode)}<span class="d-txt">${esc(t.from)} → ${esc(t.to)}</span>${t.km ? `<em>${apx(t) + t.km.toLocaleString("de-DE")} km</em>` : ""}<button class="del" data-k="trip" data-i="${t._i}" title="Eintrag löschen">✕</button></span>`);
+    if (night && night.from === d) {
+      const n = stayNights(night).length;
+      parts.push(`<span class="d-leg">${BED_ICON}<span class="d-txt">${esc(night.hotel || "Hotel")}</span><em>${night.city ? esc(night.city) + " · " : ""}${n} ${n === 1 ? "Nacht" : "Nächte"}</em><button class="del" data-k="stay" data-i="${night._i}" title="Übernachtung löschen">✕</button></span>`);
+    }
+    for (const c of (checks || [])) parts.push(`<span class="d-leg">${PIN_ICON}<span class="d-txt">${c.label ? esc(c.label) : esc(c.city)}</span>${c.label ? `<em>${esc(c.city)}</em>` : ""}<button class="del edit" data-k="checkin-edit" data-i="${c._i}" title="Label ändern">✎</button><button class="del" data-k="checkin" data-i="${c._i}" title="Check-in löschen">✕</button></span>`);
     const loc = night ? (night.city || night.hotel) : (legs.length ? legs[legs.length - 1].toCity : (checks && checks.length ? (checks[0].label || checks[0].city) : ""));
-    const main = parts.length || loc
-      ? `<span class="d-main">${loc ? `<b>${esc(loc)}</b>` : ""}${parts.join("")}</span>`
-      : `<span class="d-main d-home">·</span>`;
-    return `<div class="day-row">${track}${date}${main}</div>`;
+    const locHtml = loc ? `<span class="d-loc">${esc(loc)}</span>` : `<span class="d-loc d-home">·</span>`;
+    const events = parts.length ? `<span class="d-events">${parts.join("")}</span>` : "";
+    return `<div class="day-row">${track}${date}${locHtml}${events}</div>`;
   }
 
   let lastMonth = "";
